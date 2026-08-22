@@ -32,10 +32,8 @@ jobs:
       - name: Add custom WhatsApp share plugin
         run: |
           mkdir -p android/app/src/main/java/com/achfrirachid/tatabbou
-
           cat > android/app/src/main/java/com/achfrirachid/tatabbou/WhatsAppSharePlugin.java << 'EOF'
           package com.achfrirachid.tatabbou;
-
           import android.content.Intent;
           import android.content.pm.PackageManager;
           import android.net.Uri;
@@ -45,12 +43,9 @@ jobs:
           import com.getcapacitor.PluginCall;
           import com.getcapacitor.PluginMethod;
           import com.getcapacitor.annotation.CapacitorPlugin;
-
           import java.io.File;
-
           @CapacitorPlugin(name = "WhatsAppShare")
           public class WhatsAppSharePlugin extends Plugin {
-
               @PluginMethod
               public void shareImage(PluginCall call) {
                   String filePath = call.getString("path");
@@ -65,19 +60,12 @@ jobs:
                           getContext().getPackageName() + ".fileprovider",
                           file
                       );
-
                       Intent intent = new Intent(Intent.ACTION_SEND);
                       intent.setType("image/png");
                       intent.putExtra(Intent.EXTRA_STREAM, uri);
                       intent.setPackage("com.whatsapp");
                       intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-                      // Ù…Ù‡Ù…: resolveActivity() ÙƒÙŠØ­ØªØ§Ø¬ ØµÙ„Ø§Ø­ÙŠØ© Ø±Ø¤ÙŠØ© Ø§Ù„ØªØ·Ø¨ÙŠÙ‚ Ø§Ù„Ø¢Ø®Ø±
-                      // (queries ÙÙ€ manifest)ØŒ ÙˆØ¥Ù„Ø§ ÙƒÙŠØ±Ø¬Ø¹ null Ø­ØªÙ‰ Ù„Ùˆ ÙˆØ§ØªØ³Ø§Ø¨
-                      // Ù…Ø«Ø¨Øª ÙØ¹Ù„Ø§ â€” ÙÙƒØ§Ù† Ø§Ù„Ø³Ø¨Ø¨ Ø§Ù„Ù„ÙŠ ÙƒÙŠØ®Ù„ÙŠ Ø§Ù„Ø²Ø± ÙŠÙØ´Ù„ Ø¨ØµÙ…Øª.
-                      // Ø§Ù„Ø£ØµØ­: Ù†Ø­Ø§ÙˆÙ„Ùˆ startActivity Ø±Ø£Ø³Ø§ ÙˆÙ†Ù…Ø³ÙƒÙˆ Ø§Ù„Ø§Ø³ØªØ«Ù†Ø§Ø¡ Ø¥Ù„Ø§
-                      // Ù…Ø§ÙƒØ§Ù†Ø´ ÙˆØ§ØªØ³Ø§Ø¨ Ù…Ø«Ø¨Øª ÙØ¹Ù„ÙŠØ§ (ActivityNotFoundException).
                       try {
                           getContext().startActivity(intent);
                           JSObject ret = new JSObject();
@@ -92,13 +80,10 @@ jobs:
               }
           }
           EOF
-
           cat > android/app/src/main/java/com/achfrirachid/tatabbou/MainActivity.java << 'EOF'
           package com.achfrirachid.tatabbou;
-
           import android.os.Bundle;
           import com.getcapacitor.BridgeActivity;
-
           public class MainActivity extends BridgeActivity {
             @Override
             public void onCreate(Bundle savedInstanceState) {
@@ -107,22 +92,17 @@ jobs:
             }
           }
           EOF
-
       - name: Ensure internet permissions are declared
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' "$MANIFEST" || \
           sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
-
       - name: Declare package visibility for WhatsApp (Android 11+ requirement)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
-          # Ø¨Ù„Ø§ Ù‡Ø§Ø¯ <queries>ØŒ resolveActivity() ÙƒÙŠØ±Ø¬Ø¹ null Ø­ØªÙ‰ Ù„Ùˆ ÙˆØ§ØªØ³Ø§Ø¨ Ù…Ø«Ø¨Øª
-          # ÙØ§Ù„Ù‡Ø§ØªÙ â€” Ù‡Ø§Ø¯ Ø§Ù„Ø³Ø¨Ø¨ Ø§Ù„Ù„ÙŠ ÙƒØ§Ù† ÙƒÙŠØ®Ù„ÙŠ Ø²Ø± "ÙˆØ§ØªØ³Ø§Ø¨ Ù…Ø¨Ø§Ø´Ø±Ø©" ÙŠÙØ´Ù„ Ø¨ØµÙ…Øª.
           if ! grep -q '<queries>' "$MANIFEST"; then
             sed -i '/<\/manifest>/i\    <queries>\n        <package android:name="com.whatsapp" />\n    </queries>' "$MANIFEST"
           fi
-
       - name: Sync web assets into native project
         run: npx cap sync android
 
