@@ -933,5 +933,68 @@
       false,
       false
     ]
+  },
+  {
+    "id": "mt697lzr5ndt",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "hit",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 33,
+    "startDate": "2026-08-23"
+  },
+  {
+    "id": "mt69aor2vdtn",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "gol",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 34,
+    "startDate": "2026-08-23"
+  },
+  {
+    "id": "mt69cfp26449",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "/////////////////////////////////////////////////",
+    "paidMonths": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 35,
+    "startDate": "2026-08-23"
   }
 ]
