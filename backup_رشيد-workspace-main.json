@@ -795,5 +795,28 @@
       false,
       false
     ]
+  },
+  {
+    "id": "mt5yvm6gfa3z",
+    "regId": 27,
+    "name": ".",
+    "startDate": "2026-08-23",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
