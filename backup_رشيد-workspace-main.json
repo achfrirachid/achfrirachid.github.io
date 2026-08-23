@@ -912,26 +912,5 @@
     "phone": "",
     "regId": 33,
     "startDate": "2026-08-23"
-  },
-  {
-    "id": "mt69cfp26449",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "/////////////////////////////////////////////////",
-    "paidMonths": [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 35,
-    "startDate": "2026-08-23"
   }
 ]
