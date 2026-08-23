@@ -933,28 +933,5 @@
     "phone": "",
     "regId": 35,
     "startDate": "2026-08-23"
-  },
-  {
-    "id": "mt6bjo4ikjvx",
-    "regId": 36,
-    "name": "rachido😁*****",
-    "startDate": "2026-08-23",
-    "monthlyAmount": 100,
-    "phone": "",
-    "birthDate": null,
-    "masarId": "",
-    "photo": null,
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ]
   }
 ]
