@@ -841,5 +841,28 @@
       false,
       false
     ]
+  },
+  {
+    "id": "mt5z9gperpqm",
+    "regId": 29,
+    "name": "hhh",
+    "startDate": "2026-08-23",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
