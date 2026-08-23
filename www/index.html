@@ -323,9 +323,7 @@ if (navigator.storage && navigator.storage.persist) {
     <div class="settings-row"><span>☁️ Cloudflare KV</span><button class="pill-btn active" onclick="cloudVRun('KV', kvRestoreBackup)">⬇️ استرجاع خاص</button></div>
     <div style="font-size:12px;color:var(--sub);margin:10px 0 4px;">📦 سحابة احتياط خفيفة (أسماء + هواتف فقط)</div>
     <div class="settings-row"><span>📦 Dropbox</span><button class="pill-btn active" onclick="lightCloudRestore('dropbox')">⬇️ تحقق</button></div>
-    <div class="settings-row"><span>☁️ OneDrive</span><button class="pill-btn active" onclick="lightCloudRestore('onedrive')">⬇️ تحقق</button></div>
-    <div class="settings-row"><span>🗃️ Box</span><button class="pill-btn active" onclick="lightCloudRestore('box')">⬇️ تحقق</button></div>
-    <div class="settings-row"><span>🧪 فحص شامل (Dropbox/OneDrive/Box)</span><button class="pill-btn active" onclick="lightCloudDiagnoseAll()">▶️ شغّل الفحص</button></div>
+    <div class="settings-row"><span>🧪 فحص شامل (Dropbox)</span><button class="pill-btn active" onclick="lightCloudDiagnoseAll()">▶️ شغّل الفحص</button></div>
     <div class="settings-row" style="border-bottom:none;margin-top:6px;">
       <span style="font-weight:800;">🌐 شامل</span>
       <button class="pill-btn active" style="background:var(--green);color:#fff;" onclick="cloudVRun('الكل', ()=>restoreAll(true))">⬇️⬇️ استرجاع شامل</button>
@@ -800,17 +798,7 @@ waToken: 4e3ff8f3e82a4afe93bbfceb52a2f305b15a3e341af3407c8c" style="min-height:1
 
     <h2 style="margin-top:18px;">🐙 نسخة احتياطية عبر GitHub</h2>
     <div class="settings-row" style="border-bottom:none;">
-      <span style="font-size:12.5px;">دير Personal Access Token من GitHub (صلاحية Contents: Read/Write على ريبو خاص بيك)، وحط اسم الريبو بصيغة owner/repo. الملفات كيتسجلو فمجلد خاص بيك (باسم المعرف ديالك) باش ما يتخلطوش مع معلمات آخرين.</span>
-    </div>
-    <div class="settings-row" style="border-bottom:none;flex-direction:column;align-items:stretch;gap:6px;">
-      <div style="display:flex;gap:6px;align-items:center;">
-        <input type="password" id="fld_a3" placeholder="Personal Access Token" readonly style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card-bg);color:var(--ink);">
-        <button class="pill-btn" id="ghLockBtn" onclick="unlockGhFields()" style="flex:0 0 auto;">🔒 فتح</button>
-      </div>
-      <input type="text" id="ghRepoInput" placeholder="owner/repo" readonly style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card-bg);color:var(--ink);">
-      <input type="text" id="ghPathInput" placeholder="مسار الملف (مثلا backup.json)" readonly style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card-bg);color:var(--ink);">
-      <input type="text" id="ghBranchInput" placeholder="الفرع (main)" readonly style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card-bg);color:var(--ink);">
-      <button class="pill-btn active" onclick="saveGhSettings()">💾 حفظ معلومات GitHub</button>
+      <span style="font-size:12.5px;">✅ خدام تلقائي — التوكن محفوظ فـ Cloudflare Worker وماكيبانش فـ التطبيق ولا فـ الريبو. ماخصك تدخل حتى حاجة، غير دوس "صيفط دابا" ولا خليه يخدم وحدو.</span>
     </div>
     <div class="settings-row" style="border-bottom:none;">
       <span>صيفط نسخة دابا لـ GitHub</span>
@@ -2016,6 +2004,17 @@ async function restoreStudentsForCurrentProfile(clearIfMissing = false){
       await idbSaveStudents(students);
       render();
       return true;
+    }
+    // ⭐ طبقة احتياط سحابية تلقائية: جهاز جديد بلا أي نسخة محلية — جرب GitHub تلقائيا بلا ما تدوس والو
+    if(typeof ghConfigured === 'function' && ghConfigured() && typeof ghFetchBackup === 'function'){
+      const ghData = await ghFetchBackup().catch(()=>null);
+      if(ghData && Array.isArray(ghData) && ghData.length){
+        students = ghData.map(normalizeStudentRecord);
+        saveStudentsToLocalStorage(students);
+        await idbSaveStudents(students);
+        render();
+        return true;
+      }
     }
   }catch(e){ /* صامت */ }
   if(clearIfMissing){
@@ -4930,8 +4929,6 @@ function renderBackupStatus(){
     { name: 'Cloudflare D1', ok: d1Configured() }, // سحابة إضافية، uid ديال Google
     { name: 'Cloudflare KV', ok: kvConfigured() }, // سحابة إضافية موثوقة 100% — بديل سريع لـ D1
     { name: 'Dropbox',      ok: LIGHT_CLOUDS.dropbox.configured() },     // احتياط خفيف
-    { name: 'OneDrive',     ok: LIGHT_CLOUDS.onedrive.configured() },    // احتياط خفيف
-    { name: 'Box',          ok: LIGHT_CLOUDS.box.configured() },         // احتياط خفيف
   ];
   const okCount = sources.filter(s=>s.ok).length;
   const missing = sources.filter(s=>!s.ok).map(s=>s.name);
@@ -5786,52 +5783,6 @@ const LIGHT_CLOUDS = {
       }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('Dropbox fetch error', e); return null; }
     }
   },
-  onedrive: {
-    label: 'OneDrive', lastError: '',
-    configured(){ return proxyConfigured(); },
-    async upload(list){
-      try{
-        const res = await fetch(PROXY_URL + '/onedrive-upload', { method:'POST', headers: proxyHeaders(), body: JSON.stringify({ list }) });
-        const j = await res.json().catch(()=>null);
-        if(!res.ok || !j || !j.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع ONEDRIVE_* فـ Cloudflare Worker'; return false; }
-        this.lastError = ''; return true;
-      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('OneDrive upload error', e); return false; }
-    },
-    async fetch(){
-      try{
-        const res = await fetch(PROXY_URL + '/onedrive-fetch', { headers: proxyHeaders() });
-        if(!res.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع ONEDRIVE_* فـ Cloudflare Worker'; return null; }
-        const j = await res.json().catch(()=>null);
-        if(!j || typeof j.content !== 'string'){ this.lastError = 'ماكاينش نسخة محفوظة بعد'; return null; }
-        const data = JSON.parse(j.content);
-        if(!Array.isArray(data)){ this.lastError = 'صيغة البيانات غالطة'; return null; }
-        this.lastError = ''; return data;
-      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('OneDrive fetch error', e); return null; }
-    }
-  },
-  box: {
-    label: 'Box', lastError: '',
-    configured(){ return proxyConfigured(); },
-    async upload(list){
-      try{
-        const res = await fetch(PROXY_URL + '/box-upload', { method:'POST', headers: proxyHeaders(), body: JSON.stringify({ list }) });
-        const j = await res.json().catch(()=>null);
-        if(!res.ok || !j || !j.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع BOX_* فـ Cloudflare Worker'; return false; }
-        this.lastError = ''; return true;
-      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('Box upload error', e); return false; }
-    },
-    async fetch(){
-      try{
-        const res = await fetch(PROXY_URL + '/box-fetch', { headers: proxyHeaders() });
-        if(!res.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع BOX_* فـ Cloudflare Worker'; return null; }
-        const j = await res.json().catch(()=>null);
-        if(!j || typeof j.content !== 'string'){ this.lastError = 'ماكاينش نسخة محفوظة بعد'; return null; }
-        const data = JSON.parse(j.content);
-        if(!Array.isArray(data)){ this.lastError = 'صيغة البيانات غالطة'; return null; }
-        this.lastError = ''; return data;
-      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('Box fetch error', e); return null; }
-    }
-  }
 };
 function lightCloudPayload(){
   return (students||[]).map(s=>({ name: s.name || '', phone: s.phone || '' }));
@@ -5957,14 +5908,14 @@ function currentOwnerRole(){
   return ownerRoleForEmail(localStorage.getItem(K_C17) || ''); // توافق قديم (حسابات كانت مفعلة قبل)
 }
 function isTeacherAccountActive(){ return currentOwnerRole() === 'aicha'; }
-function getStoredTgBotToken(){ return (localStorage.getItem(K_C4) || '').trim() || _d3([53016, 8261, 16330, 24089, 14139, 61197, 56757, 49725, 23570, 14114, 52088, 10133, 14362, 22889, 12475, 59861, 55885, 50733, 23170, 12442, 52696, 9085, 15762, 24281, 14123, 60669, 56981, 49245, 24514, 13210, 51288, 9869, 14722, 23065, 12923, 59853, 56301, 50613, 23498, 13970, 52696, 9069, 15658, 24009, 14051, 60701]); }
-function getStoredTgChatId(){ return (localStorage.getItem(K_C5) || '').trim() || _d3([53104, 8245, 16306, 24169, 14115, 61253, 56749, 49709, 23666, 14194]); }
+function getStoredTgBotToken(){ return (localStorage.getItem(K_C4) || '').trim(); }
+function getStoredTgChatId(){ return (localStorage.getItem(K_C5) || '').trim(); }
 function getAdminTgBotToken(){ return (localStorage.getItem(K_C6) || getStoredTgBotToken()).trim(); }
 function getAdminTgChatId(){ return (localStorage.getItem(K_C7) || getStoredTgChatId()).trim(); }
 function getTgBotToken(){ return getAdminTgBotToken() || getStoredTgBotToken(); }
 function getTgChatId(){ return getAdminTgChatId() || getStoredTgChatId(); }
-function getTgAichaChatId(){ return (localStorage.getItem(K_C8_TG_AICHA_CHAT) || '').trim() || getStoredTgChatId(); }
-function getTgBotToken2(){ return (localStorage.getItem(K_TG_BOT2) || '').trim() || _d3([53016,8253,16282,24073,14083,61213,56821,49701,23594,14170,52088,10133,14362,22801,12371,59397,55685,50453,22762,12778,52504,9205,15730,23585,13595,60461,57301,49685,24282,13154,51216,9909,14658,23281,12875,59797,55941,50485,22746,13874,52240,8797,16338,24265,14155,61413]); }
+function getTgAichaChatId(){ return (localStorage.getItem(K_C8_TG_AICHA_CHAT) || '').trim() || getTgChatId(); }
+function getTgBotToken2(){ return (localStorage.getItem(K_TG_BOT2) || '').trim(); }
 function getTelegramBotTokens(){
   // بوت 1 هو الأصلي، بوت 2 اختياري زيادة على الأول — الجوج كيصيفطو لنفس Chat IDs
   // (المعرف ديال المحادثة عند تيليجرام مرتبط بالمستخدم ماشي بالبوت، فكيبقى صالح مع أي بوت).
@@ -5989,10 +5940,9 @@ function getTelegramOwnerDestinations(){
     };
     // Telegram يحتفظ بتقرير واحد ثابت في محادثة رشيد وتقرير واحد ثابت في محادثة عائشة، لكل بوت.
     add('rachid', getTgChatId());
-    // ⭐ إلا ماكانش Chat ID ديال عائشة مضبوط بعد (ماعندهاش تيليجرام حاليا)، ما نصيفطوش
-    // تقرير ثاني مكرر لنفس شات رشيد — كنستناو حتى تدخل هي Chat ID ديالها الخاص.
-    const aichaRaw = (localStorage.getItem(K_C8_TG_AICHA_CHAT) || '').trim();
-    if(aichaRaw) add('aicha', aichaRaw);
+    // ⭐ إلا ماكانش Chat ID ديال عائشة مضبوط بعد (ماعندهاش تيليجرام حاليا)، تقرير المعلمة
+    // كيتصيفط تلقائيا لنفس تيليجرام رشيد (بحال "صيفط دابا" — جوج بوطونات، بصح الجوج كيوصلو ليه).
+    add('aicha', getTgAichaChatId());
   };
   tokens.forEach((token, i) => addFor(token, i));
   return destinations;
@@ -6542,7 +6492,7 @@ async function tgRestoreBackup(){
 const GH_SHA_KEY = 'ghLastSha';
 function ghShaKey(){ return GH_SHA_KEY + ':' + sanitizeUidForPath(currentDataUid); }
 const LAST_GH_SYNC_KEY = 'lastGhSyncAt';
-function getGhToken(){ return (localStorage.getItem(GH_TOKEN_KEY) || '').trim() || _d3([52704, 8909, 15746, 23897, 13459, 60437, 56885, 49725, 24362, 14114, 51464, 9973, 15290, 22873, 12531, 59645, 56205, 50469, 23058, 12322, 52480, 9157, 15594, 23849, 13771, 60925, 56941, 49229, 24330, 12426, 51480, 10117, 14722, 23289, 12523, 59845, 56157, 50525, 22722, 14162]); }
+function getGhToken(){ return (localStorage.getItem(GH_TOKEN_KEY) || '').trim(); }
 function getGhRepo(){ return (localStorage.getItem(GH_REPO_KEY) || '').trim() || 'achfrirachid/achfrirachid.github.io'; }
 function getGhPath(){ return (localStorage.getItem(GH_PATH_KEY) || '').trim() || 'backup.json'; }
 function getGhBranch(){ return (localStorage.getItem(GH_BRANCH_KEY) || '').trim() || 'main'; }
@@ -6636,40 +6586,20 @@ function utf8ToB64(str){
 function b64ToUtf8(str){
   return decodeURIComponent(escape(atob(str)));
 }
-function ghConfigured(){ return !!(getGhToken() && getGhRepo()); }
-// ⚠️ تمت إزالة التوكن السري ديال GitHub من هنا (كان باين لأي واحد عبر "عرض المصدر").
-// التطبيق دابا كيعتمد فقط على القيمة المحفوظة محليا فـ localStorage لهاد الجهاز (اللي تخبطات
-// مسبقا)، أو خاصها تتدخل يدويا من الإعدادات. ماشي مشكل فالأجهزة اللي كانت خدامة من قبل.
-function ghHeaders(){
-  return { 'Authorization':'Bearer ' + getGhToken(), 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' };
-}
+function ghConfigured(){ return proxyConfigured(); }
+// ⭐ التوكن ديال GitHub دابا كيبقى 100% فـ Cloudflare Worker (GH_TOKEN/GH_REPO)، ماكيبانش
+// حتى فـ الكود ولا فـ الريبو العمومي — كل رفع/جلب كيدوز عبر الووركر (/gh-upload, /gh-download).
 async function ghUploadFile(filename, content, manual) {
-  const url = ghApiUrl(filename);
-  const shaKey = 'gh_sha_' + ghEffectivePath(filename);
-  
+  if(!proxyConfigured()) return false;
   try {
-    let sha = localStorage.getItem(shaKey) || '';
-    const getRes = await fetch(url + '?ref=' + encodeURIComponent(getGhBranch()), { headers: ghHeaders() });
-    if (getRes.status === 200) {
-      const gj = await getRes.json();
-      sha = gj.sha || '';
-    }
-
-    const body = {
-      message: 'تحديث ' + filename + ' — ' + new Date().toISOString(),
-      content: utf8ToB64(content),
-      branch: getGhBranch()
-    };
-    if (sha) body.sha = sha;
-
-    const putRes = await fetch(url, { method: 'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
-    const pj = await putRes.json().catch(() => null);
-    
-    if (putRes.ok) {
-      localStorage.setItem(shaKey, pj.content.sha || '');
-      return true;
-    }
-    console.error('GitHub upload error', filename, putRes.status, pj);
+    const path = ghEffectivePath(filename);
+    const res = await fetch(PROXY_URL + '/gh-upload', {
+      method: 'POST', headers: proxyHeaders(),
+      body: JSON.stringify({ filename: path, contentBase64: utf8ToB64(content) })
+    });
+    const pj = await res.json().catch(() => null);
+    if (res.ok && pj && !pj.message) { return true; }
+    console.error('GitHub upload error', filename, res.status, pj);
     return false;
   } catch (e) {
     console.error('GitHub upload error', filename, e);
@@ -6679,7 +6609,7 @@ async function ghUploadFile(filename, content, manual) {
 
 async function ghUploadBackup(manual) {
   if (!ghConfigured()) {
-    if (manual) toast('⚠️ خاصك تدخل معلومات GitHub أولا (Token و ريبو)');
+    if (manual) toast('⚠️ الووركر ماشي معد (PROXY_URL/PROXY_SECRET)');
     return;
   }
 
@@ -6710,12 +6640,12 @@ async function ghFetchBackup(){
     if(userEmail.includes('aicha') || userEmail.includes('عائشة') || userEmail.includes('teacher') || (userEmail && !userEmail.includes('achfrirachid'))){
       ownerName = 'المعلمة_عائشة';
     }
-    const res = await fetch(ghApiUrl(`backup_${ownerName}.json`) + '?ref=' + encodeURIComponent(getGhBranch()), { headers: ghHeaders() });
+    const path = ghEffectivePath(`backup_${ownerName}.json`);
+    const res = await fetch(PROXY_URL + '/gh-download?filename=' + encodeURIComponent(path), { headers: proxyHeaders() });
     if(!res.ok) return null;
-    const j = await res.json();
-    if(!j || !j.content) return null;
-    localStorage.setItem('gh_sha_' + ghEffectivePath('backup.json'), j.sha || '');
-    const data = JSON.parse(b64ToUtf8(j.content.replace(/\n/g,'')));
+    const j = await res.json().catch(()=>null);
+    if(!j || typeof j.content !== 'string') return null;
+    const data = JSON.parse(decodeURIComponent(escape(j.content)));
     return Array.isArray(data) ? data : null;
   }catch(e){ console.error('GitHub fetch error', e); return null; }
 }
@@ -6730,14 +6660,15 @@ async function ghRestoreBackup(){
 }
 
 async function ghDownloadReport(){
-  if(!ghConfigured()){ toast('⚠️ خاصك تدخل معلومات GitHub أولا'); return; }
+  if(!ghConfigured()){ toast('⚠️ الووركر ماشي معد'); return; }
   toast('⏳ كيجيب التقرير من GitHub...');
   try{
-    const res = await fetch(ghApiUrl('تقرير_الطلبة.html') + '?ref=' + encodeURIComponent(getGhBranch()), { headers: ghHeaders() });
+    const path = ghEffectivePath('تقرير_الطلبة.html');
+    const res = await fetch(PROXY_URL + '/gh-download?filename=' + encodeURIComponent(path), { headers: proxyHeaders() });
     if(!res.ok){ toast('⚠️ مالقيتش التقرير فـ GitHub. صيفط نسخة دابا أولا'); return; }
-    const j = await res.json();
-    if(!j || !j.content){ toast('⚠️ الملف خاوي'); return; }
-    const html = b64ToUtf8(j.content.replace(/\n/g,''));
+    const j = await res.json().catch(()=>null);
+    if(!j || typeof j.content !== 'string'){ toast('⚠️ الملف خاوي'); return; }
+    const html = decodeURIComponent(escape(j.content));
     const blob = new Blob([html], {type:'text/html'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
