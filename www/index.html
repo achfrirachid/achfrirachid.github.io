@@ -323,6 +323,9 @@ if (navigator.storage && navigator.storage.persist) {
     <div class="settings-row"><span>☁️ Cloudflare KV</span><button class="pill-btn active" onclick="cloudVRun('KV', kvRestoreBackup)">⬇️ استرجاع خاص</button></div>
     <div style="font-size:12px;color:var(--sub);margin:10px 0 4px;">📦 سحابة احتياط خفيفة (أسماء + هواتف فقط)</div>
     <div class="settings-row"><span>📦 Dropbox</span><button class="pill-btn active" onclick="lightCloudRestore('dropbox')">⬇️ تحقق</button></div>
+    <div class="settings-row"><span>☁️ OneDrive</span><button class="pill-btn active" onclick="lightCloudRestore('onedrive')">⬇️ تحقق</button></div>
+    <div class="settings-row"><span>🗃️ Box</span><button class="pill-btn active" onclick="lightCloudRestore('box')">⬇️ تحقق</button></div>
+    <div class="settings-row"><span>🧪 فحص شامل (Dropbox/OneDrive/Box)</span><button class="pill-btn active" onclick="lightCloudDiagnoseAll()">▶️ شغّل الفحص</button></div>
     <div class="settings-row" style="border-bottom:none;margin-top:6px;">
       <span style="font-weight:800;">🌐 شامل</span>
       <button class="pill-btn active" style="background:var(--green);color:#fff;" onclick="cloudVRun('الكل', ()=>restoreAll(true))">⬇️⬇️ استرجاع شامل</button>
@@ -4927,6 +4930,8 @@ function renderBackupStatus(){
     { name: 'Cloudflare D1', ok: d1Configured() }, // سحابة إضافية، uid ديال Google
     { name: 'Cloudflare KV', ok: kvConfigured() }, // سحابة إضافية موثوقة 100% — بديل سريع لـ D1
     { name: 'Dropbox',      ok: LIGHT_CLOUDS.dropbox.configured() },     // احتياط خفيف
+    { name: 'OneDrive',     ok: LIGHT_CLOUDS.onedrive.configured() },    // احتياط خفيف
+    { name: 'Box',          ok: LIGHT_CLOUDS.box.configured() },         // احتياط خفيف
   ];
   const okCount = sources.filter(s=>s.ok).length;
   const missing = sources.filter(s=>!s.ok).map(s=>s.name);
@@ -5779,6 +5784,52 @@ const LIGHT_CLOUDS = {
         if(!Array.isArray(data)){ this.lastError = 'صيغة البيانات غالطة'; return null; }
         this.lastError = ''; return data;
       }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('Dropbox fetch error', e); return null; }
+    }
+  },
+  onedrive: {
+    label: 'OneDrive', lastError: '',
+    configured(){ return proxyConfigured(); },
+    async upload(list){
+      try{
+        const res = await fetch(PROXY_URL + '/onedrive-upload', { method:'POST', headers: proxyHeaders(), body: JSON.stringify({ list }) });
+        const j = await res.json().catch(()=>null);
+        if(!res.ok || !j || !j.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع ONEDRIVE_* فـ Cloudflare Worker'; return false; }
+        this.lastError = ''; return true;
+      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('OneDrive upload error', e); return false; }
+    },
+    async fetch(){
+      try{
+        const res = await fetch(PROXY_URL + '/onedrive-fetch', { headers: proxyHeaders() });
+        if(!res.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع ONEDRIVE_* فـ Cloudflare Worker'; return null; }
+        const j = await res.json().catch(()=>null);
+        if(!j || typeof j.content !== 'string'){ this.lastError = 'ماكاينش نسخة محفوظة بعد'; return null; }
+        const data = JSON.parse(j.content);
+        if(!Array.isArray(data)){ this.lastError = 'صيغة البيانات غالطة'; return null; }
+        this.lastError = ''; return data;
+      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('OneDrive fetch error', e); return null; }
+    }
+  },
+  box: {
+    label: 'Box', lastError: '',
+    configured(){ return proxyConfigured(); },
+    async upload(list){
+      try{
+        const res = await fetch(PROXY_URL + '/box-upload', { method:'POST', headers: proxyHeaders(), body: JSON.stringify({ list }) });
+        const j = await res.json().catch(()=>null);
+        if(!res.ok || !j || !j.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع BOX_* فـ Cloudflare Worker'; return false; }
+        this.lastError = ''; return true;
+      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('Box upload error', e); return false; }
+    },
+    async fetch(){
+      try{
+        const res = await fetch(PROXY_URL + '/box-fetch', { headers: proxyHeaders() });
+        if(!res.ok){ this.lastError = 'السيرفر رفض (HTTP '+res.status+') — راجع BOX_* فـ Cloudflare Worker'; return null; }
+        const j = await res.json().catch(()=>null);
+        if(!j || typeof j.content !== 'string'){ this.lastError = 'ماكاينش نسخة محفوظة بعد'; return null; }
+        const data = JSON.parse(j.content);
+        if(!Array.isArray(data)){ this.lastError = 'صيغة البيانات غالطة'; return null; }
+        this.lastError = ''; return data;
+      }catch(e){ this.lastError = 'خطأ شبكة: '+(e.message||e); console.error('Box fetch error', e); return null; }
     }
   }
 };
