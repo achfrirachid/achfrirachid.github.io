@@ -5,7 +5,7 @@
     "monthlyAmount": 100,
     "name": "عمر",
     "paidMonths": [
-      true,
+      false,
       false,
       false,
       false,
