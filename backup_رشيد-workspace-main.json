@@ -441,6 +441,66 @@
     "startDate": "2026-08-04"
   },
   {
+    "id": "msf7snc4ir4r",
+    "monthlyAmount": 100,
+    "name": "5",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 9,
+    "startDate": "2026-08-05"
+  },
+  {
+    "id": "msf7t5vtba1a",
+    "monthlyAmount": 100,
+    "name": "6",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 10,
+    "startDate": "2026-08-04"
+  },
+  {
+    "id": "msfuyeajt6u6",
+    "monthlyAmount": 100,
+    "name": "سعيد",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 11,
+    "startDate": "2026-07-08"
+  },
+  {
     "id": "msfuyv3plt3c",
     "monthlyAmount": 100,
     "name": "سعيدة",
@@ -876,14 +936,9 @@
   },
   {
     "id": "mt697lzr5ndt",
-    "regId": 33,
-    "name": "hit",
-    "startDate": "2026-08-23",
-    "monthlyAmount": 100,
-    "phone": "",
-    "birthDate": null,
     "masarId": "",
-    "photo": null,
+    "monthlyAmount": 100,
+    "name": "hit",
     "paidMonths": [
       false,
       false,
@@ -895,18 +950,16 @@
       false,
       false,
       false
-    ]
+    ],
+    "phone": "",
+    "regId": 33,
+    "startDate": "2026-08-23"
   },
   {
     "id": "mt69aor2vdtn",
-    "regId": 34,
-    "name": "gol",
-    "startDate": "2026-08-23",
-    "monthlyAmount": 100,
-    "phone": "",
-    "birthDate": null,
     "masarId": "",
-    "photo": null,
+    "monthlyAmount": 100,
+    "name": "gol",
     "paidMonths": [
       false,
       false,
@@ -918,18 +971,16 @@
       false,
       false,
       false
-    ]
+    ],
+    "phone": "",
+    "regId": 34,
+    "startDate": "2026-08-23"
   },
   {
     "id": "mt69cfp26449",
-    "regId": 35,
-    "name": "/////////////////////////////////////////////////",
-    "startDate": "2026-08-23",
-    "monthlyAmount": 100,
-    "phone": "",
-    "birthDate": null,
     "masarId": "",
-    "photo": null,
+    "monthlyAmount": 100,
+    "name": "/////////////////////////////////////////////////",
     "paidMonths": [
       true,
       false,
@@ -941,6 +992,9 @@
       false,
       false,
       false
-    ]
+    ],
+    "phone": "",
+    "regId": 35,
+    "startDate": "2026-08-23"
   }
 ]
