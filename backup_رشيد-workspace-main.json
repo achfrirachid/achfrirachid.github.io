@@ -441,26 +441,6 @@
     "startDate": "2026-08-04"
   },
   {
-    "id": "msf7snc4ir4r",
-    "monthlyAmount": 100,
-    "name": "5",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 9,
-    "startDate": "2026-08-05"
-  },
-  {
     "id": "msfuyv3plt3c",
     "monthlyAmount": 100,
     "name": "سعيدة",
