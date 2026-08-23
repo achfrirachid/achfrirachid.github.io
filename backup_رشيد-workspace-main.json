@@ -749,5 +749,28 @@
     "phone": "",
     "regId": 24,
     "startDate": "2026-08-21"
+  },
+  {
+    "id": "mt5xexvlvtsf",
+    "regId": 25,
+    "name": "rachido😁",
+    "startDate": "2026-08-23",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
