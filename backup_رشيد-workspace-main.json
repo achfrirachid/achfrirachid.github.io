@@ -24,27 +24,6 @@
     "startDate": "2026-08-17"
   },
   {
-    "id": "msxtmzmv8du4",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "رشيد",
-    "paidMonths": [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 2,
-    "startDate": "2026-08-17"
-  },
-  {
     "id": "msxtno3rtt8l",
     "masarId": "",
     "monthlyAmount": 100,
@@ -938,14 +917,9 @@
   },
   {
     "id": "mt6vrtqca62f",
-    "regId": 35,
-    "name": "خروف",
-    "startDate": "2026-08-24",
-    "monthlyAmount": 100,
-    "phone": "",
-    "birthDate": null,
     "masarId": "",
-    "photo": null,
+    "monthlyAmount": 100,
+    "name": "خروف",
     "paidMonths": [
       false,
       false,
@@ -957,6 +931,9 @@
       false,
       false,
       false
-    ]
+    ],
+    "phone": "",
+    "regId": 35,
+    "startDate": "2026-08-24"
   }
 ]
