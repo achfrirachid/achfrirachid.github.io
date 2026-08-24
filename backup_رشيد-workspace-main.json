@@ -87,6 +87,27 @@
     "startDate": "2026-08-18"
   },
   {
+    "id": "msyl9m9azvvn",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "go",
+    "paidMonths": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 5,
+    "startDate": "2026-08-18"
+  },
+  {
     "id": "msylhvmx3454",
     "masarId": "",
     "monthlyAmount": 100,
