@@ -24,27 +24,6 @@
     "startDate": "2026-08-17"
   },
   {
-    "id": "msxtmzmv8du4",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "رشيد",
-    "paidMonths": [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 2,
-    "startDate": "2026-08-17"
-  },
-  {
     "id": "msxtno3rtt8l",
     "masarId": "",
     "monthlyAmount": 100,
