@@ -276,26 +276,6 @@
     "startDate": "2026-08-04"
   },
   {
-    "id": "msf7qdhcr1nz",
-    "monthlyAmount": 100,
-    "name": "3",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 7,
-    "startDate": "2026-08-04"
-  },
-  {
     "id": "msf7qpb0711h",
     "monthlyAmount": 100,
     "name": "4",
