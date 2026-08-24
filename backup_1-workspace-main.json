@@ -150,27 +150,6 @@
     "startDate": "2026-09-12"
   },
   {
-    "id": "msys6c03ayqx",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "تجريب",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 11,
-    "startDate": "2026-14-09"
-  },
-  {
     "id": "msysd29lxr93",
     "masarId": "",
     "monthlyAmount": 100,
