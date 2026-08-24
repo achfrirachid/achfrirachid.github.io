@@ -129,27 +129,6 @@
     "startDate": "2026-08-18"
   },
   {
-    "id": "msyo954sxe3k",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "سعد",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 8,
-    "startDate": "2026-09-12"
-  },
-  {
     "id": "msys4i7zy99e",
     "masarId": "",
     "monthlyAmount": 100,
