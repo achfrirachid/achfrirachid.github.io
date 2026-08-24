@@ -938,14 +938,9 @@
   },
   {
     "id": "mt6vrtqca62f",
-    "regId": 35,
-    "name": "خروف",
-    "startDate": "2026-08-24",
-    "monthlyAmount": 100,
-    "phone": "",
-    "birthDate": null,
     "masarId": "",
-    "photo": null,
+    "monthlyAmount": 100,
+    "name": "خروف",
     "paidMonths": [
       false,
       false,
@@ -957,6 +952,9 @@
       false,
       false,
       false
-    ]
+    ],
+    "phone": "",
+    "regId": 35,
+    "startDate": "2026-08-24"
   }
 ]
