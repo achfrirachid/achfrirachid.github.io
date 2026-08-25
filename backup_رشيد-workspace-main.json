@@ -554,7 +554,7 @@
     "monthlyAmount": 100,
     "name": "اشغري ريان",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
