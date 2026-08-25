@@ -95,7 +95,7 @@
     "monthlyAmount": 100,
     "name": "go",
     "paidMonths": [
-      true,
+      false,
       false,
       false,
       false,
