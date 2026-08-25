@@ -958,5 +958,26 @@
       false,
       false
     ]
+  },
+  {
+    "id": "mt7vzbwunhtf",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "عائشة",
+    "paidMonths": [
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 2,
+    "startDate": "2026-06-14"
   }
 ]
