@@ -25,6 +25,28 @@
     "birthDate": null
   },
   {
+    "id": "msxtmzmv8du4",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "رشيد",
+    "paidMonths": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "0677186838",
+    "regId": 2,
+    "startDate": "2026-08-17",
+    "birthDate": null
+  },
+  {
     "id": "msxtno3rtt8l",
     "masarId": "",
     "monthlyAmount": 100,
@@ -330,7 +352,7 @@
     "monthlyAmount": 100,
     "name": "2",
     "paidMonths": [
-      true,
+      false,
       false,
       false,
       false,
@@ -430,7 +452,7 @@
     "monthlyAmount": 100,
     "name": "سعيد",
     "paidMonths": [
-      true,
+      false,
       false,
       false,
       false,
@@ -441,11 +463,9 @@
       false,
       false
     ],
-    "phone": "0677186838",
+    "phone": "",
     "regId": 11,
-    "startDate": "2026-07-08",
-    "birthDate": null,
-    "masarId": ""
+    "startDate": "2026-07-08"
   },
   {
     "id": "msfuyv3plt3c",
