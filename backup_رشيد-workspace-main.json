@@ -308,7 +308,7 @@
     "name": "hhhjjjjjjkkkppppppp",
     "paidMonths": [
       true,
-      false,
+      true,
       false,
       false,
       false,
@@ -318,9 +318,11 @@
       false,
       false
     ],
-    "phone": "",
+    "phone": "0666299689",
     "regId": 3,
-    "startDate": "2026-07-04"
+    "startDate": "2026-07-04",
+    "birthDate": null,
+    "masarId": ""
   },
   {
     "id": "msf1aqv5n33s",
