@@ -201,7 +201,7 @@
     "monthlyAmount": 100,
     "name": "hhhh",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
