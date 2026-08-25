@@ -42,5 +42,28 @@
       false,
       false
     ]
+  },
+  {
+    "id": "mt8yfrpx7mz0",
+    "regId": 3,
+    "name": "Gool",
+    "startDate": "2026-08-25",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
