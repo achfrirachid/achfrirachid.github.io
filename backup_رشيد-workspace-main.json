@@ -74,7 +74,7 @@
     "monthlyAmount": 100,
     "name": "اسفري",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
