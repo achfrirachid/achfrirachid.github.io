@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>تقرير الطلبة — سجل الدفوعات</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+    padding: 20px;
+    background: #f3f4f6;
+    direction: rtl;
+    text-align: right;
+    color: #1f2937;
+  }
+  .container {
+    background: #ffffff;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    max-width: 1100px;
+    margin: 0 auto;
+    border: 1px solid #e5e7eb;
+  }
+  h1 {
+    font-size: 22px;
+    text-align: center;
+    color: #1b8a4d;
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+  p.meta {
+    text-align: center;
+    color: #4b5563;
+    font-size: 13px;
+    margin-top: 0;
+    margin-bottom: 24px;
+    font-weight: 600;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    border: 1px solid #d1d5db;
+    padding: 10px 10px;
+    font-size: 13.5px;
+  }
+  th {
+    background: #1b8a4d;
+    color: #fff;
+    text-align: center;
+    font-weight: 700;
+  }
+  .actions-bar {
+    margin-top: 24px;
+    text-align: center;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    padding: 11px 22px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+  }
+  .btn-green { background: #1b8a4d; color: #fff; }
+  .btn-green:hover { background: #156d3d; }
+  .btn-blue { background: #2563eb; color: #fff; }
+  .btn-blue:hover { background: #1d4ed8; }
+  .btn-dark { background: #374151; color: #fff; }
+  .btn-dark:hover { background: #1f2937; }
+  
+  @media print {
+    body { padding: 0; background: #fff; }
+    .container { box-shadow: none; max-width: 100%; border: none; padding: 0; }
+    .no-print { display: none !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1 style="margin-bottom:2px;">🏫 جمعية المعرفة</h1>
+  <p class="meta" style="margin-top:0; margin-bottom:2px; font-weight:700; color:#1b8a4d;">📋 تقرير الطلبة — سجل الدفوعات</p>
+  <p class="meta">تاريخ التقرير: 25‏/8‏/2026، 00:22:14 &nbsp;|&nbsp; عدد الطلبة: 24</p>
+  
+  <div style="overflow-x: auto;">
+    <table id="reportTable">
+      <thead>
+        <tr>
+          <th style="background:#1b8a4d; color:#fff; padding:12px 14px; text-align:right; font-size:14px; width:22%;">الاسم الكامل</th>
+          <th style="background:#1b8a4d; color:#fff; padding:12px 10px; text-align:center; font-size:14px; width:15%;">يوم الالتحاق</th>
+          <th style="background:#1b8a4d; color:#fff; padding:12px 10px; text-align:center; font-size:14px; width:13%;">هل خالص؟</th>
+          <th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">9</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">10</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">11</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">12</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">1</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">2</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">3</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">4</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">5</th><th style="width:45px; background:#1b8a4d; color:#fff; text-align:center; border:1px solid #146c3b; padding:10px 6px; font-size:13px;">6</th>
+        </tr>
+      </thead>
+      <tbody>
+        
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">عائشة</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">14/06/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td><td style="text-align:center; color:#0a7a2f; background:#e5f6ec; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">✅</td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">عمر</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">17/08/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">رشيد</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">17/08/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">ريان</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">23/07/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">اسفري</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">18/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">go</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">18/08/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">حسن</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">18/08/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">1</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">12/09/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">000000</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">12/09/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">1982</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">15/05/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td><td style="text-align:center; color:#0a7a2f; background:#e5f6ec; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">✅</td><td style="text-align:center; color:#0a7a2f; background:#e5f6ec; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">✅</td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">bna</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">03/08/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">hhhhh</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">04/08/2026</td>
+      <td style="text-align:center; color:#0a7a2f; background:#e5f6ec; border:1px solid #d1d5db; padding:8px; font-weight:bold;">✅ نعم</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">مووووووووو</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">04/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">2</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">04/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">4</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">04/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">5</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">05/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">6</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">04/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">سااااااااااااعييييييييييييييييييي</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">05/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">اشفري رشيد</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">15/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">اشفري عمر</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">15/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">اشغري ريان</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">15/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">فاطمة</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">15/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#ffffff;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">مروة</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">16/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+    <tr style="background:#f9fafb;">
+      <td style="background:#f2f8f5; font-weight:bold; color:#1c2128; border:1px solid #d1d5db; padding:10px 12px; text-align:right;">مليكة</td>
+      <td dir="ltr" style="background:#fcfdfd; text-align:center; color:#4b5563; border:1px solid #d1d5db; padding:10px 8px; font-weight:600;">16/08/2026</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; border:1px solid #d1d5db; padding:8px; font-weight:bold;">❌ لا</td>
+      <td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#c0392b; background:#fbe9e7; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;">❌</td><td style="text-align:center; color:#7f8c8d; background:#f8f9fa; font-weight:bold; font-size:14px; border:1px solid #d1d5db; padding:8px;"></td>
+    </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="actions-bar no-print">
+    <button class="btn btn-green" onclick="downloadExcel()">📊 تصدير Excel (xlsx)</button>
+    <button class="btn btn-blue" onclick="downloadWord()">📄 تصدير Word (Office)</button>
+    <button class="btn btn-dark" onclick="window.print()">🖨️ طباعة / حفظ PDF</button>
+  </div>
+  <div class="actions-bar no-print" style="margin-top:12px;">
+    <button class="btn" style="background:#25D366; color:#fff;" onclick="shareReportFile('whatsapp')">🟢 صيفط PDF عبر واتساب</button>
+    <button class="btn" style="background:#229ED9; color:#fff;" onclick="shareReportFile('telegram')">🔵 صيفط PDF عبر تيليغرام</button>
+  </div>
+  
+  <p style="font-size:12px; color:#6b7280; margin-top:24px; text-align:center;" class="no-print">
+    هاد الملف مخصص للطباعة والعرض المباشر من اليمين إلى اليسار، ويتجدد تلقائياً كلما تم تحديث البيانات في التطبيق.
+  </p>
+</div>
+
+<script>
+  function downloadExcel() {
+    const worksheet = XLSX.utils.table_to_sheet(document.getElementById('reportTable'));
+    if(!worksheet['!views']) worksheet['!views'] = [];
+    worksheet['!views'].push({ RTL: true });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "الطلبة");
+    XLSX.writeFile(workbook, "تقرير_الطلبة.xlsx");
+  }
+
+  function downloadWord() {
+    const htmlContent = buildStudentsReportWordHtml();
+    const blob = new Blob(['﻿' + htmlContent], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = "تقرير_الطلبة.doc";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  function extractReportTableData() {
+    const table = document.getElementById('reportTable');
+    const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+    const bodyRows = Array.from(table.querySelectorAll('tbody tr')).map(tr =>
+      Array.from(tr.children).map(td => td.textContent.trim())
+    );
+    return { headers, bodyRows };
+  }
+
+  function buildReportPdfBlob() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape');
+    const { headers, bodyRows } = extractReportTableData();
+    doc.autoTable({
+      head: [headers],
+      body: bodyRows,
+      styles: { font: 'courier', halign: 'center', fontSize: 9 },
+      headStyles: { fillColor: [27, 138, 77], textColor: [255, 255, 255] },
+      theme: 'grid',
+      didParseCell: function (hookData) {
+        if (hookData.section === 'body' && hookData.column.index >= 2) {
+          const val = hookData.cell.raw;
+          if (String(val).startsWith('✅')) {
+            hookData.cell.styles.textColor = [10, 122, 47];
+            hookData.cell.styles.fontStyle = 'bold';
+          } else if (String(val).startsWith('❌')) {
+            hookData.cell.styles.textColor = [192, 57, 43];
+            hookData.cell.styles.fontStyle = 'bold';
+          } else {
+            hookData.cell.styles.textColor = [150, 150, 150];
+          }
+        }
+      }
+    });
+    return doc.output('blob');
+  }
+
+  async function shareReportFile(kind) {
+    try {
+      const blob = buildReportPdfBlob();
+      const file = new File([blob], "تقرير_الطلبة.pdf", { type: 'application/pdf' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'سجل الدفوعات — تتبع الطلبة',
+          text: 'سجل الدفوعات — تتبع الطلبة'
+        });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // المستخدم لغى المشاركة
+      console.error('shareReportFile error', e);
+    }
+
+    try {
+      const blob = buildReportPdfBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = "تقرير_الطلبة.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    } catch (e2) {
+      console.error('pdf fallback error', e2);
+    }
+    const msg = encodeURIComponent('📋 سجل الدفوعات — تتبع الطلبة
+الملف تحمّل، دوز لصقو هنا 👇');
+    if (kind === 'whatsapp') {
+      window.open('https://wa.me/?text=' + msg, '_blank');
+    } else {
+      window.open('https://t.me/share/url?url=&text=' + msg, '_blank');
+    }
+  }
+</script>
+</body>
+</html>
