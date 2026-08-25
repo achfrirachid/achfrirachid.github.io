@@ -31,7 +31,7 @@
     "masarId": "",
     "photo": null,
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
