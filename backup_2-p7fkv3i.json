@@ -54,6 +54,29 @@
     "masarId": "",
     "photo": null,
     "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  {
+    "id": "mt8yrivxmuuw",
+    "regId": 4,
+    "name": "Fht",
+    "startDate": "2026-08-25",
+    "monthlyAmount": 100,
+    "phone": "0666299689",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
       true,
       false,
       false,
