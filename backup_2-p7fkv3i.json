@@ -19,5 +19,28 @@
     "phone": "",
     "regId": 1,
     "startDate": "2026-08-24"
+  },
+  {
+    "id": "mt8jei2co6zp",
+    "regId": 2,
+    "name": "رشيد",
+    "startDate": "2026-08-25",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
