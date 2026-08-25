@@ -1,0 +1,23 @@
+[
+  {
+    "id": "mt7ulhu1xdti",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "Gaza",
+    "paidMonths": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 1,
+    "startDate": "2026-08-24"
+  }
+]
