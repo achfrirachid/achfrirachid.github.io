@@ -330,7 +330,7 @@
     "monthlyAmount": 100,
     "name": "2",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
