@@ -617,7 +617,7 @@
     "monthlyAmount": 100,
     "name": "مليكة",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
@@ -628,7 +628,7 @@
       false,
       false
     ],
-    "phone": "",
+    "phone": "v",
     "regId": 20,
     "startDate": "2026-08-16"
   },
