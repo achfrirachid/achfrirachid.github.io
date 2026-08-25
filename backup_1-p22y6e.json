@@ -246,7 +246,7 @@
       true,
       true,
       true,
-      false,
+      true,
       false,
       false,
       false,
@@ -258,9 +258,10 @@
       "2026-08-20T13:29:17.945Z",
       "2026-08-20T13:29:28.726Z"
     ],
-    "phone": "",
+    "phone": "0666299689",
     "regId": 15,
-    "startDate": "2026-05-15"
+    "startDate": "2026-05-15",
+    "birthDate": null
   },
   {
     "id": "msctns8pin0g",
