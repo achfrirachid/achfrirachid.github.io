@@ -201,7 +201,7 @@
     "monthlyAmount": 100,
     "name": "hhhh",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
@@ -212,9 +212,10 @@
       false,
       false
     ],
-    "phone": "",
+    "phone": "0677186838",
     "regId": 13,
-    "startDate": "2026-08-20"
+    "startDate": "2026-08-20",
+    "birthDate": null
   },
   {
     "id": "msyu36p2inlk",
