@@ -21,5 +21,28 @@
       false,
       false
     ]
+  },
+  {
+    "id": "mtaef4fclu1g",
+    "regId": 2,
+    "name": "Ba",
+    "startDate": "2026-08-26",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
