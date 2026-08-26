@@ -30,7 +30,7 @@
     "monthlyAmount": 100,
     "name": "رشيد",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
