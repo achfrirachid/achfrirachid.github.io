@@ -1020,5 +1020,26 @@
       false,
       false
     ]
+  },
+  {
+    "id": "msylhvmx3454",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "حسن",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 7,
+    "startDate": "2026-08-18"
   }
 ]
