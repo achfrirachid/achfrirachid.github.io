@@ -133,27 +133,6 @@
     "startDate": "2026-08-18"
   },
   {
-    "id": "msyo954sxe3k",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "سعد",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "0666299689",
-    "regId": 8,
-    "startDate": "2026-09-12"
-  },
-  {
     "id": "msys4i7zy99e",
     "masarId": "",
     "monthlyAmount": 100,
@@ -194,49 +173,6 @@
     "phone": "",
     "regId": 11,
     "startDate": "2026-14-09"
-  },
-  {
-    "id": "msysd29lxr93",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "hhhh",
-    "paidMonths": [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "0677186838",
-    "regId": 13,
-    "startDate": "2026-08-20",
-    "birthDate": null
-  },
-  {
-    "id": "msyu36p2inlk",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "000000",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 14,
-    "startDate": "2026-09-12"
   },
   {
     "id": "mt1k34hm6rwc",
