@@ -988,5 +988,89 @@
     "phone": "",
     "regId": 1,
     "startDate": "2026-08-24"
+  },
+  {
+    "id": "mtagpkq6eiik",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "bh",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 38,
+    "startDate": "2026-08-26"
+  },
+  {
+    "id": "mtae4n3bos2q",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "الهاتف",
+    "paidMonths": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "0666299689",
+    "regId": 1,
+    "startDate": "2026-08-26"
+  },
+  {
+    "id": "mtaef4fclu1g",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "Ba",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 2,
+    "startDate": "2026-08-26"
+  },
+  {
+    "id": "mt5ggv55z1jf",
+    "masarId": "",
+    "monthlyAmount": 100,
+    "name": "براد",
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ],
+    "phone": "",
+    "regId": 25,
+    "startDate": "2026-08-23"
   }
 ]
