@@ -1001,5 +1001,28 @@
     "phone": "",
     "regId": 7,
     "startDate": "2026-08-18"
+  },
+  {
+    "id": "mt7oz07u5znz",
+    "regId": 1,
+    "name": "vg",
+    "startDate": "2026-08-24",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
