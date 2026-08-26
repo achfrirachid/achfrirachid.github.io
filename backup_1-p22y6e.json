@@ -920,5 +920,28 @@
     "phone": "",
     "regId": 1,
     "startDate": "2026-08-24"
+  },
+  {
+    "id": "mtagpkq6eiik",
+    "regId": 38,
+    "name": "bh",
+    "startDate": "2026-08-26",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
