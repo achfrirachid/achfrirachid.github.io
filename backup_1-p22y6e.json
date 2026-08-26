@@ -113,27 +113,6 @@
     "birthDate": null
   },
   {
-    "id": "msylhvmx3454",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "حسن",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 7,
-    "startDate": "2026-08-18"
-  },
-  {
     "id": "msyo954sxe3k",
     "masarId": "",
     "monthlyAmount": 100,
