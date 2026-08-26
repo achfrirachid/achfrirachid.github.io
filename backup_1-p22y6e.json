@@ -133,27 +133,6 @@
     "startDate": "2026-08-18"
   },
   {
-    "id": "msys4i7zy99e",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "1",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 10,
-    "startDate": "2026-09-12"
-  },
-  {
     "id": "msys6c03ayqx",
     "masarId": "",
     "monthlyAmount": 100,
