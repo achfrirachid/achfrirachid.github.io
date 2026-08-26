@@ -133,53 +133,6 @@
     "startDate": "2026-08-18"
   },
   {
-    "id": "msys6c03ayqx",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "تجريب",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 11,
-    "startDate": "2026-14-09"
-  },
-  {
-    "id": "mt1k34hm6rwc",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "1982",
-    "paidMonths": [
-      true,
-      true,
-      true,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "paymentDates": [
-      "2026-08-20T13:29:17.945Z",
-      "2026-08-20T13:29:28.726Z"
-    ],
-    "phone": "0666299689",
-    "regId": 15,
-    "startDate": "2026-05-15",
-    "birthDate": null
-  },
-  {
     "id": "msctns8pin0g",
     "monthlyAmount": 100,
     "name": "bna",
