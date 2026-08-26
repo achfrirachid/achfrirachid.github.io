@@ -1,1 +1,25 @@
-[]
+[
+  {
+    "id": "mtae4n3bos2q",
+    "regId": 1,
+    "name": "الهاتف",
+    "startDate": "2026-08-26",
+    "monthlyAmount": 100,
+    "phone": "0666299689",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  }
+]
