@@ -1025,26 +1025,5 @@
     "phone": "",
     "regId": 2,
     "startDate": "2026-08-26"
-  },
-  {
-    "id": "mt5ggv55z1jf",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "براد",
-    "paidMonths": [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 25,
-    "startDate": "2026-08-23"
   }
 ]
