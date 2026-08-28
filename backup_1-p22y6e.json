@@ -1032,7 +1032,7 @@
     "monthlyAmount": 100,
     "name": "براد",
     "paidMonths": [
-      false,
+      true,
       false,
       false,
       false,
