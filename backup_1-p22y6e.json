@@ -983,26 +983,5 @@
     "phone": "",
     "regId": 38,
     "startDate": "2026-08-26"
-  },
-  {
-    "id": "mtae4n3bos2q",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "الهاتف",
-    "paidMonths": [
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "0666299689",
-    "regId": 1,
-    "startDate": "2026-08-26"
   }
 ]
