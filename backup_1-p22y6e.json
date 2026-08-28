@@ -1004,26 +1004,5 @@
     "phone": "0666299689",
     "regId": 1,
     "startDate": "2026-08-26"
-  },
-  {
-    "id": "mtaef4fclu1g",
-    "masarId": "",
-    "monthlyAmount": 100,
-    "name": "Ba",
-    "paidMonths": [
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false
-    ],
-    "phone": "",
-    "regId": 2,
-    "startDate": "2026-08-26"
   }
 ]
