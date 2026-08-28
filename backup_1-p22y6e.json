@@ -983,5 +983,28 @@
     "phone": "",
     "regId": 38,
     "startDate": "2026-08-26"
+  },
+  {
+    "id": "mtc6wixqxf5y",
+    "regId": 39,
+    "name": "00000",
+    "startDate": "2026-08-28",
+    "monthlyAmount": 100,
+    "phone": "",
+    "birthDate": null,
+    "masarId": "",
+    "photo": null,
+    "paidMonths": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
   }
 ]
