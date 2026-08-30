@@ -106,6 +106,19 @@ jobs:
       - name: Sync web assets into native project
         run: npx cap sync android
 
+      - name: Apply custom app icon
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp android-icon/ic_launcher-$d.png android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp android-icon/ic_launcher_round-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+            cp android-icon/ic_launcher_foreground-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_foreground.png
+            cp android-icon/ic_launcher_background-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_background.png
+          done
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp android-icon/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp android-icon/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
       - name: Build debug APK
         working-directory: android
         run: chmod +x gradlew && ./gradlew assembleDebug
