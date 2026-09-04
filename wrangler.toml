@@ -1,0 +1,7 @@
+name = "talaba-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+kv_namespaces = [
+  { binding = "STUDENTS_KV", id = "6962ab9518c34cbb8dd83d1870f074c3" }
+]
