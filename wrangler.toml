@@ -1,7 +1,0 @@
-name = "talaba-proxy"
-main = "worker.js"
-compatibility_date = "2024-01-01"
-
-kv_namespaces = [
-  { binding = "STUDENTS_KV", id = "PUT_NAMESPACE_ID_HERE" }
-]
