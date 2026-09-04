@@ -1,8 +1,0 @@
-main = "worker.js"
-compatibility_date = "2024-01-01"
-
-# مخزن النسخة المستقلة لبيانات الطلبة.
-# أنشئ KV namespace ثم عوّض القيمة التالية بالـ ID الحقيقي قبل النشر.
-[[kv_namespaces]]
-binding = "STUDENT_BACKUP_KV"
-id = "PUT_KV_NAMESPACE_ID_HERE"
