@@ -1,0 +1,372 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Ensure TypeScript is available (needed for capacitor.config.ts)
+        run: npm install -D typescript
+
+      - name: Add Android platform (first run only, safe to repeat)
+        run: npx cap add android || true
+
+      - name: Upgrade Gradle wrapper (fixes Java-21 multi-release-jar parsing bug in old Gradle)
+        run: |
+          sed -i 's#distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Add custom WhatsApp share plugin
+        run: |
+          mkdir -p android/app/src/main/java/com/achfrirachid/tatabbou
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/WhatsAppSharePlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import androidx.core.content.FileProvider;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import java.io.File;
+          @CapacitorPlugin(name = "WhatsAppShare")
+          public class WhatsAppSharePlugin extends Plugin {
+              @PluginMethod
+              public void shareImage(PluginCall call) {
+                  String filePath = call.getString("path");
+                  if (filePath == null) {
+                      call.reject("path required");
+                      return;
+                  }
+                  try {
+                      File file = new File(filePath);
+                      Uri uri = FileProvider.getUriForFile(
+                          getContext(),
+                          getContext().getPackageName() + ".fileprovider",
+                          file
+                      );
+                      Intent intent = new Intent(Intent.ACTION_SEND);
+                      intent.setType("image/png");
+                      intent.putExtra(Intent.EXTRA_STREAM, uri);
+                      intent.setPackage("com.whatsapp");
+                      intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      try {
+                          getContext().startActivity(intent);
+                          JSObject ret = new JSObject();
+                          ret.put("opened", true);
+                          call.resolve(ret);
+                      } catch (android.content.ActivityNotFoundException notFound) {
+                          call.reject("whatsapp_not_installed");
+                      }
+                  } catch (Exception e) {
+                      call.reject("share_failed: " + e.getMessage());
+                  }
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): بلوجين Native باش JS يقدر
+          # يطلب صلاحية الإشعارات أو يفتح إعدادات التطبيق مباشرة.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/NotificationPermissionPlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.provider.Settings;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.app.NotificationManagerCompat;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          @CapacitorPlugin(name = "NotificationPermission")
+          public class NotificationPermissionPlugin extends Plugin {
+              @PluginMethod
+              public void isEnabled(PluginCall call) {
+                  boolean enabled = NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
+                  JSObject ret = new JSObject();
+                  ret.put("enabled", enabled);
+                  call.resolve(ret);
+              }
+              @PluginMethod
+              public void request(PluginCall call) {
+                  Activity activity = getActivity();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activity != null) {
+                      boolean granted = ActivityCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+                      if (!granted) {
+                          ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9022);
+                      }
+                  }
+                  JSObject ret = new JSObject();
+                  ret.put("enabled", NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+                  call.resolve(ret);
+              }
+              @PluginMethod
+              public void openSettings(PluginCall call) {
+                  Intent intent = new Intent();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                      intent.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+                  } else {
+                      intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                      intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                  }
+                  intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  getContext().startActivity(intent);
+                  call.resolve();
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): Worker مربوط بـ WorkManager،
+          # كيبدا خدمة المزامنة المخفية كل ما توفرت الشبكة (حتى والتطبيق مقفول).
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/SyncWorker.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.content.Context;
+          import android.content.Intent;
+          import androidx.annotation.NonNull;
+          import androidx.core.content.ContextCompat;
+          import androidx.work.Worker;
+          import androidx.work.WorkerParameters;
+          public class SyncWorker extends Worker {
+              public SyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
+                  super(context, params);
+              }
+              @NonNull
+              @Override
+              public Result doWork() {
+                  try {
+                      Intent intent = new Intent(getApplicationContext(), HeadlessSyncService.class);
+                      ContextCompat.startForegroundService(getApplicationContext(), intent);
+                  } catch (Exception e) {
+                      return Result.retry();
+                  }
+                  return Result.success();
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): Foreground Service كيخلق
+          # WebView مخفي على نفس origin (https://localhost) ديال التطبيق العادي
+          # باش يشارك نفس تسجيل الدخول والبيانات (localStorage/IndexedDB)، كيدير
+          # دورة مزامنة سريعة عبر ?headless=1، وكيسكر روحه من بعد.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/HeadlessSyncService.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.annotation.SuppressLint;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.Intent;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.annotation.Nullable;
+          import androidx.core.app.NotificationCompat;
+          import androidx.webkit.WebViewAssetLoader;
+          public class HeadlessSyncService extends Service {
+              private static final String CHANNEL_ID = "tatabbou_sync_channel";
+              private static final int NOTIF_ID = 5501;
+              private WebView webView;
+              private Handler timeoutHandler;
+              private boolean finished = false;
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  startForeground(NOTIF_ID, buildNotification());
+                  startHeadlessSync();
+              }
+              @SuppressLint("SetJavaScriptEnabled")
+              private void startHeadlessSync() {
+                  final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                      .setDomain("localhost")
+                      .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
+                      .build();
+                  webView = new WebView(getApplicationContext());
+                  webView.getSettings().setJavaScriptEnabled(true);
+                  webView.getSettings().setDomStorageEnabled(true);
+                  webView.getSettings().setDatabaseEnabled(true);
+                  webView.addJavascriptInterface(new JsBridge(), "AndroidHeadlessSync");
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                          return assetLoader.shouldInterceptRequest(request.getUrl());
+                      }
+                  });
+                  webView.loadUrl("https://localhost/public/index.html?headless=1");
+                  timeoutHandler = new Handler(Looper.getMainLooper());
+                  timeoutHandler.postDelayed(new Runnable() {
+                      @Override
+                      public void run() { finishSync(); }
+                  }, 45000);
+              }
+              private class JsBridge {
+                  @JavascriptInterface
+                  public void onDone() {
+                      new Handler(Looper.getMainLooper()).post(new Runnable() {
+                          @Override public void run() { finishSync(); }
+                      });
+                  }
+                  @JavascriptInterface
+                  public void onError(String msg) {
+                      new Handler(Looper.getMainLooper()).post(new Runnable() {
+                          @Override public void run() { finishSync(); }
+                      });
+                  }
+              }
+              private synchronized void finishSync() {
+                  if (finished) return;
+                  finished = true;
+                  if (timeoutHandler != null) timeoutHandler.removeCallbacksAndMessages(null);
+                  if (webView != null) { webView.destroy(); webView = null; }
+                  stopForeground(true);
+                  stopSelf();
+              }
+              private Notification buildNotification() {
+                  NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel channel = nm.getNotificationChannel(CHANNEL_ID);
+                      if (channel == null) {
+                          channel = new NotificationChannel(CHANNEL_ID, "مزامنة تتبع الطلبة", NotificationManager.IMPORTANCE_MIN);
+                          nm.createNotificationChannel(channel);
+                      }
+                  }
+                  return new NotificationCompat.Builder(this, CHANNEL_ID)
+                      .setContentTitle("تتبع الطلبة")
+                      .setContentText("جارٍ التزامن فالخلفية...")
+                      .setSmallIcon(android.R.drawable.stat_notify_sync)
+                      .setPriority(NotificationCompat.PRIORITY_MIN)
+                      .build();
+              }
+              @Nullable
+              @Override
+              public IBinder onBind(Intent intent) { return null; }
+          }
+          EOF
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/MainActivity.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.Manifest;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import androidx.core.app.ActivityCompat;
+          import androidx.work.Constraints;
+          import androidx.work.ExistingPeriodicWorkPolicy;
+          import androidx.work.NetworkType;
+          import androidx.work.PeriodicWorkRequest;
+          import androidx.work.WorkManager;
+          import java.util.concurrent.TimeUnit;
+          import com.getcapacitor.BridgeActivity;
+          public class MainActivity extends BridgeActivity {
+            @Override
+            public void onCreate(Bundle savedInstanceState) {
+              registerPlugin(WhatsAppSharePlugin.class);
+              registerPlugin(NotificationPermissionPlugin.class);
+              super.onCreate(savedInstanceState);
+              scheduleBackgroundSync();
+              requestNotificationPermissionIfNeeded();
+            }
+            // ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): كل 15 دقيقة (أقل حد مسموح
+            // بيه أندرويد لـ WorkManager periodic)، وغير كي تكون الشبكة متوفرة.
+            private void scheduleBackgroundSync() {
+              Constraints constraints = new Constraints.Builder()
+                  .setRequiredNetworkType(NetworkType.CONNECTED)
+                  .build();
+              PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(SyncWorker.class, 15, TimeUnit.MINUTES)
+                  .setConstraints(constraints)
+                  .build();
+              WorkManager.getInstance(getApplicationContext())
+                  .enqueueUniquePeriodicWork("tatabbou_bg_sync", ExistingPeriodicWorkPolicy.KEEP, request);
+            }
+            // ⭐ 2026-09-11 (إضافة): طلب صلاحية الإشعارات مرة وحدة عند فتح التطبيق
+            // (أندرويد 13+ فقط) — إلا كانت مرفوضة قبل، أندرويد ما كيعاودش يبين
+            // الديالوغ، وخصو المستخدم يفعّلها يدويا من الزر الجديد فالإعدادات.
+            private void requestNotificationPermissionIfNeeded() {
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                  ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9021);
+                }
+              }
+            }
+          }
+          EOF
+      - name: Ensure internet permissions are declared
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
+      - name: Declare package visibility for WhatsApp (Android 11+ requirement)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q '<queries>' "$MANIFEST"; then
+            sed -i '/<\/manifest>/i\    <queries>\n        <package android:name="com.whatsapp" />\n    </queries>' "$MANIFEST"
+          fi
+
+      - name: Add background sync + notification permissions (addition — 2026-09-11)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.POST_NOTIFICATIONS' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />' "$MANIFEST"
+          grep -q 'HeadlessSyncService' "$MANIFEST" || \
+          sed -i '/<\/application>/i\        <service android:name="com.achfrirachid.tatabbou.HeadlessSyncService" android:exported="false" android:foregroundServiceType="dataSync" />' "$MANIFEST"
+
+      - name: Add background sync Gradle dependencies (addition — 2026-09-11)
+        run: |
+          GRADLE=android/app/build.gradle
+          grep -q 'androidx.work:work-runtime' "$GRADLE" || \
+          sed -i '/dependencies {/a\    implementation "androidx.work:work-runtime:2.9.0"\n    implementation "androidx.webkit:webkit:1.11.0"' "$GRADLE"
+      - name: Sync web assets into native project
+        run: npx cap sync android
+
+      - name: Apply custom app icon
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp android-icon/ic_launcher-$d.png android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp android-icon/ic_launcher_round-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+            cp android-icon/ic_launcher_foreground-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_foreground.png
+            cp android-icon/ic_launcher_background-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_background.png
+          done
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp android-icon/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp android-icon/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
