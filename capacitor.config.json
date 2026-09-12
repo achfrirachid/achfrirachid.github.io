@@ -1,4 +1,17 @@
-"FirebaseAuthentication": {
-  "skipNativeAuth": false,
-  "providers": ["google.com"]
+{
+  "appId": "com.achfrirachid.tatabbou",
+  "appName": "تتبع الطلبة",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }
