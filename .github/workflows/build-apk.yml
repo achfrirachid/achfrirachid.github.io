@@ -1,0 +1,253 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Ensure TypeScript is available (needed for capacitor.config.ts)
+        run: npm install -D typescript
+
+      - name: Add Android platform (first run only, safe to repeat)
+        run: npx cap add android || true
+
+      - name: Upgrade Gradle wrapper (fixes Java-21 multi-release-jar parsing bug in old Gradle)
+        run: |
+          sed -i 's#distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Add custom WhatsApp share plugin
+        run: |
+          mkdir -p android/app/src/main/java/com/achfrirachid/tatabbou
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/WhatsAppSharePlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import androidx.core.content.FileProvider;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import java.io.File;
+          @CapacitorPlugin(name = "WhatsAppShare")
+          public class WhatsAppSharePlugin extends Plugin {
+              @PluginMethod
+              public void shareImage(PluginCall call) {
+                  String filePath = call.getString("path");
+                  if (filePath == null) {
+                      call.reject("path required");
+                      return;
+                  }
+                  try {
+                      File file = new File(filePath);
+                      Uri uri = FileProvider.getUriForFile(
+                          getContext(),
+                          getContext().getPackageName() + ".fileprovider",
+                          file
+                      );
+                      Intent intent = new Intent(Intent.ACTION_SEND);
+                      intent.setType("image/png");
+                      intent.putExtra(Intent.EXTRA_STREAM, uri);
+                      intent.setPackage("com.whatsapp");
+                      intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      try {
+                          getContext().startActivity(intent);
+                          JSObject ret = new JSObject();
+                          ret.put("opened", true);
+                          call.resolve(ret);
+                      } catch (android.content.ActivityNotFoundException notFound) {
+                          call.reject("whatsapp_not_installed");
+                      }
+                  } catch (Exception e) {
+                      call.reject("share_failed: " + e.getMessage());
+                  }
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): بلوجين Native باش JS يقدر
+          # يطلب صلاحية الإشعارات أو يفتح إعدادات التطبيق مباشرة.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/NotificationPermissionPlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.provider.Settings;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.app.NotificationManagerCompat;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          @CapacitorPlugin(name = "NotificationPermission")
+          public class NotificationPermissionPlugin extends Plugin {
+              @PluginMethod
+              public void isEnabled(PluginCall call) {
+                  boolean enabled = NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
+                  JSObject ret = new JSObject();
+                  ret.put("enabled", enabled);
+                  call.resolve(ret);
+              }
+              @PluginMethod
+              public void request(PluginCall call) {
+                  Activity activity = getActivity();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activity != null) {
+                      boolean granted = ActivityCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+                      if (!granted) {
+                          ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9022);
+                      }
+                  }
+                  JSObject ret = new JSObject();
+                  ret.put("enabled", NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+                  call.resolve(ret);
+              }
+              @PluginMethod
+              public void openSettings(PluginCall call) {
+                  Intent intent = new Intent();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                      intent.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+                  } else {
+                      intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                      intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                  }
+                  intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  getContext().startActivity(intent);
+                  call.resolve();
+              }
+          }
+          EOF
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/MainActivity.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.Manifest;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import androidx.core.app.ActivityCompat;
+          import com.getcapacitor.BridgeActivity;
+          public class MainActivity extends BridgeActivity {
+            @Override
+            public void onCreate(Bundle savedInstanceState) {
+              registerPlugin(WhatsAppSharePlugin.class);
+              registerPlugin(NotificationPermissionPlugin.class);
+              super.onCreate(savedInstanceState);
+              requestNotificationPermissionIfNeeded();
+            }
+            // ⭐ 2026-09-13 (بطلب المستخدم — حيدنا المزامنة فالخلفية حتى والتطبيق
+            // مقفول نهائيا): scheduleBackgroundSync() وWorkManager تحيدو من هنا.
+            // المزامنة دابا كتوقع غير والتطبيق مفتوح (فورغراوند/فالخلفية القريبة)
+            // ومتصل بالنت — شوف forceSyncEverythingNow() فـ index.html.
+            // ⭐ 2026-09-11 (إضافة): طلب صلاحية الإشعارات مرة وحدة عند فتح التطبيق
+            // (أندرويد 13+ فقط) — إلا كانت مرفوضة قبل، أندرويد ما كيعاودش يبين
+            // الديالوغ، وخصو المستخدم يفعّلها يدويا من الزر الجديد فالإعدادات.
+            private void requestNotificationPermissionIfNeeded() {
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                  ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9021);
+                }
+              }
+            }
+          }
+          EOF
+      - name: Ensure internet permissions are declared
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
+      - name: Declare package visibility for WhatsApp (Android 11+ requirement)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q '<queries>' "$MANIFEST"; then
+            sed -i '/<\/manifest>/i\    <queries>\n        <package android:name="com.whatsapp" />\n    </queries>' "$MANIFEST"
+          fi
+
+      - name: Add notification permission (needed for monthly/holiday reminders)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.POST_NOTIFICATIONS' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />' "$MANIFEST"
+          # ⭐ 2026-09-13 (بطلب المستخدم — حيدنا المزامنة فالخلفية حتى والتطبيق
+          # مقفول نهائيا): صلاحيات FOREGROUND_SERVICE و<service> ديال
+          # HeadlessSyncService تحيدو من هنا، ماعادش محتاجين ليهم.
+      - name: Add google-services.json (needed for @capacitor-firebase/authentication)
+        run: |
+          echo "${GOOGLE_SERVICES_JSON_BASE64}" | tr -d '[:space:]' | base64 -d -i > android/app/google-services.json
+          echo "----- google-services.json content check -----"
+          cat android/app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+
+      - name: Add play-services-auth dependency (fixes crash on launch with providers:["google.com"])
+        run: |
+          GRADLE=android/app/build.gradle
+          grep -q 'play-services-auth' "$GRADLE" || \
+          sed -i '/dependencies {/a\    implementation "com.google.android.gms:play-services-auth:21.2.0"' "$GRADLE"
+
+      - name: Apply google-services Gradle plugin (needed for Google Sign-In)
+        run: |
+          PROJECT_GRADLE=android/build.gradle
+          grep -q "com.google.gms:google-services" "$PROJECT_GRADLE" || \
+          sed -i "/dependencies {/a\\        classpath 'com.google.gms:google-services:4.4.2'" "$PROJECT_GRADLE"
+          APP_GRADLE=android/app/build.gradle
+          grep -q "com.google.gms.google-services" "$APP_GRADLE" || \
+          echo "apply plugin: 'com.google.gms.google-services'" >> "$APP_GRADLE"
+
+      - name: Use a fixed debug keystore (so SHA-1 stays stable across builds)
+        run: |
+          mkdir -p ~/.android
+          if [ -f debug.keystore ]; then
+            cp debug.keystore ~/.android/debug.keystore
+          fi
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android || true
+
+      - name: Sync web assets into native project
+        run: npx cap sync android
+
+      - name: Apply custom app icon
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp android-icon/ic_launcher-$d.png android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp android-icon/ic_launcher_round-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+            cp android-icon/ic_launcher_foreground-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_foreground.png
+            cp android-icon/ic_launcher_background-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_background.png
+          done
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp android-icon/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp android-icon/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
