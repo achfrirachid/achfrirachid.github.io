@@ -1,0 +1,642 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Ensure TypeScript is available (needed for capacitor.config.ts)
+        run: npm install -D typescript
+
+      - name: Add Android platform (first run only, safe to repeat)
+        run: npx cap add android || true
+
+      - name: Upgrade Gradle wrapper (fixes Java-21 multi-release-jar parsing bug in old Gradle)
+        run: |
+          sed -i 's#distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.7-all.zip#' android/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Add custom WhatsApp share plugin
+        run: |
+          mkdir -p android/app/src/main/java/com/achfrirachid/tatabbou
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/WhatsAppSharePlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import androidx.core.content.FileProvider;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import java.io.File;
+          @CapacitorPlugin(name = "WhatsAppShare")
+          public class WhatsAppSharePlugin extends Plugin {
+              @PluginMethod
+              public void shareImage(PluginCall call) {
+                  String filePath = call.getString("path");
+                  if (filePath == null) {
+                      call.reject("path required");
+                      return;
+                  }
+                  try {
+                      File file = new File(filePath);
+                      Uri uri = FileProvider.getUriForFile(
+                          getContext(),
+                          getContext().getPackageName() + ".fileprovider",
+                          file
+                      );
+                      Intent intent = new Intent(Intent.ACTION_SEND);
+                      intent.setType("image/png");
+                      intent.putExtra(Intent.EXTRA_STREAM, uri);
+                      intent.setPackage("com.whatsapp");
+                      intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      try {
+                          getContext().startActivity(intent);
+                          JSObject ret = new JSObject();
+                          ret.put("opened", true);
+                          call.resolve(ret);
+                      } catch (android.content.ActivityNotFoundException notFound) {
+                          call.reject("whatsapp_not_installed");
+                      }
+                  } catch (Exception e) {
+                      call.reject("share_failed: " + e.getMessage());
+                  }
+              }
+          }
+          EOF
+          # ⭐ 2026-09-13 (إضافة — تذكير مزامنة native): SharedPreferences bridge
+          # باش JS يقدر يعلم "كاين تعديل معلق" ويختار مدة التذكير، وهاد المعلومة
+          # تبقى متاحة للـ WorkManager حتى بلا ما يكون WebView شغال خالص.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/ReminderBridgePlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import androidx.work.Constraints;
+          import androidx.work.ExistingWorkPolicy;
+          import androidx.work.NetworkType;
+          import androidx.work.OneTimeWorkRequest;
+          import androidx.work.WorkManager;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          @CapacitorPlugin(name = "ReminderBridge")
+          public class ReminderBridgePlugin extends Plugin {
+              public static final String PREFS_NAME = "tatabbou_native_sync";
+              @PluginMethod
+              public void setPending(PluginCall call) {
+                  boolean value = call.getBoolean("value", false);
+                  getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                      .edit().putBoolean("pendingSync", value).apply();
+                  // ⭐ 2026-09-13 (مزامنة فورية حقيقية): بمجرد ما كاين تعديل معلق، نطلبو
+                  // WorkManager يبدا المزامنة الصامتة بمجرد ما تتوفر الشبكة — بلا ما
+                  // نتسناو الدورة الدورية (15 د)، حتى والتطبيق مقفول كليا.
+                  if (value) {
+                      Constraints constraints = new Constraints.Builder()
+                          .setRequiredNetworkType(NetworkType.CONNECTED)
+                          .build();
+                      OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(SyncWorker.class)
+                          .setConstraints(constraints)
+                          .build();
+                      WorkManager.getInstance(getContext())
+                          .enqueueUniqueWork("tatabbou_instant_sync", ExistingWorkPolicy.REPLACE, request);
+                  }
+                  call.resolve();
+              }
+              @PluginMethod
+              public void setIntervalHours(PluginCall call) {
+                  int hours = call.getInt("hours", 0);
+                  getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                      .edit().putInt("reminderIntervalHours", hours).apply();
+                  call.resolve();
+              }
+              @PluginMethod
+              public void getConfig(PluginCall call) {
+                  SharedPreferences prefs = getContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                  JSObject ret = new JSObject();
+                  ret.put("pending", prefs.getBoolean("pendingSync", false));
+                  ret.put("intervalHours", prefs.getInt("reminderIntervalHours", 0));
+                  call.resolve(ret);
+              }
+          }
+          EOF
+          # ⭐ 2026-09-13 (إضافة): كتابة الإشعار الحقيقي (برنين + اهتزاز، ماشي صامت)
+          # اللي كيفكر المستخدم يحل التطبيق يدويا باش يتزامن مع السحابة.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/ReminderNotifier.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.media.AudioManager;
+          import android.media.ToneGenerator;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.Looper;
+          import androidx.core.app.NotificationCompat;
+          public class ReminderNotifier {
+              // ⭐ 2026-09-13 (v4، بطلب المستخدم — "حيد الصوت المنطوق، بغيت رنة ماشي
+              // تصويت"): حذفنا التصويت المنطوق (TextToSpeech "نجحت المزامنة") نهائيا.
+              // دابا: "تيت تيت تيت" (3 بيبات) للفشل، رنة "بيبتين" مميزة (نغمة مختلفة،
+              // مسافة أوسع) للنجاح — رنة بلا كلام خالص.
+              private static final String CHANNEL_ID = "tatabbou_reminder_channel_v3";
+              private static final int NOTIF_ID = 5502;
+
+              // ⭐ 2026-09-13: كتنادى من HeadlessSyncService بعد ما تنجح المزامنة التلقائية
+              // الصامتة فالخلفية. المزامنة نفسها ديما كتصرا (بلا شرط)؛ هاد الدالة غير
+              // كتقرر واش تبين إشعار+صوت تأكيد، حسب المدة المختارة من المستخدم
+              // (تعطيل = بلا إشعار خالص، فورا = كل مرة، أو تباعد بالساعات).
+              public static void maybeShowSyncSuccess(Context context) {
+                  SharedPreferences prefs = context.getSharedPreferences(ReminderBridgePlugin.PREFS_NAME, Context.MODE_PRIVATE);
+                  int intervalHours = prefs.getInt("reminderIntervalHours", 0);
+                  if (intervalHours == -1) return; // 🔕 المستخدم عطّل الإشعار (المزامنة ذاتها ماتعطلاتش)
+                  long lastNotified = prefs.getLong("lastNotifiedAt", 0);
+                  long now = System.currentTimeMillis();
+                  if (intervalHours > 0 && (now - lastNotified) < intervalHours * 3600000L) return;
+                  prefs.edit().putLong("lastNotifiedAt", now).apply();
+                  showSilent(context, "✅ تتبع الطلبة", "تزامنت بياناتك تلقائيا مع السحابة فالخلفية");
+                  // ⭐ 2026-09-13 (فيكس 2 بطلب المستخدم — "رنة النجاح خاصها تكون مختلفة
+                  // ماشي بحال تيت تيت تيت ديال الفشل، وحيد الصوت المنطوق خالص"): غير
+                  // رنة "جوج بيبات" مميزة، بلا أي تصويت منطوق.
+                  playSuccessBeeps(context);
+              }
+
+              // ⭐ 2026-09-13: 3 بيبات قصيرة "تيت تيت تيت" — كتنادى فكل مرة تفشل فيها دورة
+              // مزامنة (ماشي غير بعد 3 محاولات متتالية) باش المستخدم يحس بالفشل بمجرد
+              // ما يوقع، بلا ما يحتاج يفتح التطبيق ولا يستنى الإشعار الاحتياطي.
+              public static void playFailBeeps(Context context) {
+                  try {
+                      final ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85);
+                      final Handler h = new Handler(Looper.getMainLooper());
+                      tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 160);
+                      h.postDelayed(() -> tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 160), 320);
+                      h.postDelayed(() -> tg.startTone(ToneGenerator.TONE_PROP_BEEP2, 160), 640);
+                      h.postDelayed(tg::release, 1000);
+                  } catch (Exception e) { /* بلا كراش إلا فشل الصوت */ }
+              }
+
+              // ⭐ 2026-09-13 (إضافة بطلب المستخدم): رنة "جوج بيبات" ديال النجاح —
+              // نغمة TONE_PROP_ACK (مختلفة فالطابع عن TONE_PROP_BEEP2 ديال الفشل)،
+              // جوج مرات فقط (ماشي 3) وبفاصل زمني أوسع (450ms بدل 320ms) باش تبان
+              // واضحة ومختلفة بالأذن عن رنة الفشل "تيت تيت تيت"، وماشي شبيهة برنة
+              // نظام آيفون/أندرويد الافتراضية. بلا أي تصويت منطوق — رنة فقط.
+              public static void playSuccessBeeps(Context context) {
+                  try {
+                      final ToneGenerator tg = new ToneGenerator(AudioManager.STREAM_NOTIFICATION, 85);
+                      final Handler h = new Handler(Looper.getMainLooper());
+                      tg.startTone(ToneGenerator.TONE_PROP_ACK, 200);
+                      h.postDelayed(() -> tg.startTone(ToneGenerator.TONE_PROP_ACK, 200), 450);
+                      h.postDelayed(tg::release, 800);
+                  } catch (Exception e) { /* بلا كراش إلا فشل الصوت */ }
+              }
+
+              // ⭐ إشعار احتياطي (نص فقط، الصوت كيتدار فـ playFailBeeps): كينادى غير إلا
+              // فشلات المزامنة الصامتة عدة مرات متتالية — كيفكر المستخدم يحل التطبيق يدويا.
+              public static void maybeShowOpenAppReminder(Context context) {
+                  SharedPreferences prefs = context.getSharedPreferences(ReminderBridgePlugin.PREFS_NAME, Context.MODE_PRIVATE);
+                  int intervalHours = prefs.getInt("reminderIntervalHours", 0);
+                  if (intervalHours == -1) return; // 🔕 المستخدم عطّل الإشعار
+                  showSilent(context, "🔔 تتبع الطلبة", "المزامنة التلقائية فالخلفية فشلات عدة مرات — افتح التطبيق باش تتأكد وتتزامن يدويا");
+              }
+
+              private static void showSilent(Context context, String title, String text) {
+                  NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel channel = nm.getNotificationChannel(CHANNEL_ID);
+                      if (channel == null) {
+                          channel = new NotificationChannel(CHANNEL_ID, "تذكير مزامنة تتبع الطلبة", NotificationManager.IMPORTANCE_DEFAULT);
+                          channel.enableVibration(true);
+                          channel.setVibrationPattern(new long[]{0, 150, 100, 150});
+                          channel.enableLights(true);
+                          channel.setSound(null, null); // ⭐ بلا صوت نظام (لا منبه ولا إشعار عادي) — الصوت كيدار يدويا فوق
+                          nm.createNotificationChannel(channel);
+                      }
+                  }
+                  Intent intent = new Intent(context, MainActivity.class);
+                  intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                  int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) flags |= PendingIntent.FLAG_IMMUTABLE;
+                  PendingIntent pi = PendingIntent.getActivity(context, 0, intent, flags);
+                  NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+                      .setContentTitle(title)
+                      .setContentText(text)
+                      .setSmallIcon(android.R.drawable.stat_sys_warning)
+                      .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                      .setAutoCancel(true)
+                      .setContentIntent(pi)
+                      .setVibrate(new long[]{0, 150, 100, 150})
+                      .setSound(null);
+                  nm.notify(NOTIF_ID, builder.build());
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): بلوجين Native باش JS يقدر
+          # يطلب صلاحية الإشعارات أو يفتح إعدادات التطبيق مباشرة.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/NotificationPermissionPlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.provider.Settings;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.app.NotificationManagerCompat;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          @CapacitorPlugin(name = "NotificationPermission")
+          public class NotificationPermissionPlugin extends Plugin {
+              @PluginMethod
+              public void isEnabled(PluginCall call) {
+                  boolean enabled = NotificationManagerCompat.from(getContext()).areNotificationsEnabled();
+                  JSObject ret = new JSObject();
+                  ret.put("enabled", enabled);
+                  call.resolve(ret);
+              }
+              @PluginMethod
+              public void request(PluginCall call) {
+                  Activity activity = getActivity();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && activity != null) {
+                      boolean granted = ActivityCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+                      if (!granted) {
+                          ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9022);
+                      }
+                  }
+                  JSObject ret = new JSObject();
+                  ret.put("enabled", NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+                  call.resolve(ret);
+              }
+              @PluginMethod
+              public void openSettings(PluginCall call) {
+                  Intent intent = new Intent();
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      intent.setAction(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                      intent.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+                  } else {
+                      intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                      intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                  }
+                  intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  getContext().startActivity(intent);
+                  call.resolve();
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): Worker مربوط بـ WorkManager،
+          # كيبدا خدمة المزامنة المخفية كل ما توفرت الشبكة (حتى والتطبيق مقفول).
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/SyncWorker.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import androidx.annotation.NonNull;
+          import androidx.core.content.ContextCompat;
+          import androidx.work.Worker;
+          import androidx.work.WorkerParameters;
+          public class SyncWorker extends Worker {
+              public SyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
+                  super(context, params);
+              }
+              @NonNull
+              @Override
+              public Result doWork() {
+                  // ⭐ 2026-09-13 (رجعنا المزامنة الحقيقية): نفحصو علم "pendingSync" (كتحطو
+                  // index.html كل ما نحفظو بلا نت). إلا كان كاين، نبداو HeadlessSyncService
+                  // (WebView مخفي فخدمة Foreground) باش يدير دورة مزامنة حقيقية صامتة —
+                  // ماشي غير إشعار "حل التطبيق". هاد الـ Worker كينادى فوريا (WorkManager
+                  // one-time، بمجرد ما توفرت الشبكة، عبر ReminderBridgePlugin.setPending)
+                  // وكذلك كل 15 د (الدورة الدورية فـ MainActivity) كشبكة أمان احتياطية.
+                  try {
+                      SharedPreferences prefs = getApplicationContext()
+                          .getSharedPreferences(ReminderBridgePlugin.PREFS_NAME, Context.MODE_PRIVATE);
+                      boolean pending = prefs.getBoolean("pendingSync", false);
+                      if (!pending) return Result.success(); // ماكاين حتى تعديل معلق
+                      Intent serviceIntent = new Intent(getApplicationContext(), HeadlessSyncService.class);
+                      ContextCompat.startForegroundService(getApplicationContext(), serviceIntent);
+                  } catch (Exception e) {
+                      return Result.retry();
+                  }
+                  return Result.success();
+              }
+          }
+          EOF
+          # ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): Foreground Service كيخلق
+          # WebView مخفي على نفس origin (https://localhost) ديال التطبيق العادي
+          # باش يشارك نفس تسجيل الدخول والبيانات (localStorage/IndexedDB)، كيدير
+          # دورة مزامنة سريعة عبر ?headless=1، وكيسكر روحه من بعد.
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/HeadlessSyncService.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.annotation.SuppressLint;
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.Service;
+          import android.content.Intent;
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebResourceResponse;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import androidx.annotation.Nullable;
+          import androidx.core.app.NotificationCompat;
+          import androidx.webkit.WebViewAssetLoader;
+          public class HeadlessSyncService extends Service {
+              private static final String CHANNEL_ID = "tatabbou_sync_channel";
+              private static final int NOTIF_ID = 5501;
+              private WebView webView;
+              private Handler timeoutHandler;
+              private boolean finished = false;
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  startForeground(NOTIF_ID, buildNotification());
+                  startHeadlessSync();
+              }
+              @SuppressLint("SetJavaScriptEnabled")
+              private void startHeadlessSync() {
+                  final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
+                      .setDomain("localhost")
+                      .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
+                      .build();
+                  webView = new WebView(getApplicationContext());
+                  webView.getSettings().setJavaScriptEnabled(true);
+                  webView.getSettings().setDomStorageEnabled(true);
+                  webView.getSettings().setDatabaseEnabled(true);
+                  webView.addJavascriptInterface(new JsBridge(), "AndroidHeadlessSync");
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                          return assetLoader.shouldInterceptRequest(request.getUrl());
+                      }
+                  });
+                  webView.loadUrl("https://localhost/public/index.html?headless=1");
+                  timeoutHandler = new Handler(Looper.getMainLooper());
+                  // ⭐ 2026-09-13 (فيكس 2 بطلب المستخدم — "إلا ماكفاش 10 دقايق، زيد 15"):
+                  // زدنا من 600000ms (10 دقايق) لـ900000ms (15 دقيقة). الـ WebView مخفي
+                  // فالخلفية (خصوصا فـ Doze/توفير البطارية) كيستنى JS حتى 60ث غير باش
+                  // Firebase Auth يوصل جاهز، ومنبعد كل سحابة (Firebase/Supabase/Appwrite)
+                  // عندها دابا حتى 10 دقايق (CLOUD_JOB_TIMEOUT_MS) باش "تفيق" وترد — هامش
+                  // 15 دقيقة هنا كايفي لمحاولة وحدة كاملة لكل سحابة بريحة، بلا ما تنقطع
+                  // المزامنة فالنص. إلا سحابة احتاجات المحاولة الثانية (retry)، هاد الدورة
+                  // كتوقف عند 15د وتخلي "pendingSync" مشعول باش دورة الـ15 د الجاية ديال
+                  // WorkManager تكمل الباقي تلقائيا.
+                  timeoutHandler.postDelayed(new Runnable() {
+                      @Override
+                      public void run() { finishSync(false); }
+                  }, 900000);
+              }
+              private class JsBridge {
+                  @JavascriptInterface
+                  public void onDone() {
+                      new Handler(Looper.getMainLooper()).post(new Runnable() {
+                          @Override public void run() { finishSync(true); }
+                      });
+                  }
+                  // ⭐ 2026-09-13 (إضافة بطلب المستخدم — "إلا سحبة واحدة شدت المعلومات
+                  // غاتقول العملية نجحت، ولكن الباقي خاصهم يدخلو هوما زوج"): كتنادى
+                  // إلا وصلات المزامنة لسحابة/سحابات كافية (بانت "ناجحة" للمستخدم) لكن
+                  // مازال كاين سحابة/سحابات ماوصلوش لآخر نسخة — كنبينو صوت النجاح
+                  // العادي، لكن بلا ما نفك علم "pendingSync"، باش دورة WorkManager
+                  // الجاية (كل 15 د) تعاود تحاول تكمل الباقي تلقائيا بلا ما نتسناو
+                  // تعديل جديد.
+                  @JavascriptInterface
+                  public void onDonePartial() {
+                      new Handler(Looper.getMainLooper()).post(new Runnable() {
+                          @Override public void run() { finishSyncPartial(); }
+                      });
+                  }
+                  @JavascriptInterface
+                  public void onError(String msg) {
+                      new Handler(Looper.getMainLooper()).post(new Runnable() {
+                          @Override public void run() { finishSync(false); }
+                      });
+                  }
+              }
+              // ⭐ 2026-09-13: عند النجاح، نطفيو علم "pendingSync" (المزامنة كملات فعلا)
+              // ونعلمو المستخدم برنين حسب المدة المختارة. عند الفشل (أو انتهاء الوقت)
+              // نخليو العلم مشعول باش يعاود يحاول فالدورة الجاية، ونعدو عداد الفشل — بعد
+              // 3 محاولات متتالية فاشلة نبعثو إشعار احتياطي يفكر المستخدم يحل التطبيق يدويا.
+              private synchronized void finishSyncPartial() {
+                  if (finished) return;
+                  finished = true;
+                  if (timeoutHandler != null) timeoutHandler.removeCallbacksAndMessages(null);
+                  if (webView != null) { webView.destroy(); webView = null; }
+                  SharedPreferences prefs = getApplicationContext()
+                      .getSharedPreferences(ReminderBridgePlugin.PREFS_NAME, Context.MODE_PRIVATE);
+                  // ⭐ "pendingSync" كيبقى true (ماكنمسوهش) — عمدا، باش الدورة الجاية
+                  // ديال WorkManager (كل 15 د) تعاود تحاول تكمل السحابات الباقية.
+                  prefs.edit().putInt("syncFailCount", 0).apply(); // نجحات جزء كافي، ماشي فشل حقيقي
+                  ReminderNotifier.maybeShowSyncSuccess(getApplicationContext());
+                  stopForeground(true);
+                  stopSelf();
+              }
+              private synchronized void finishSync(boolean success) {
+                  if (finished) return;
+                  finished = true;
+                  if (timeoutHandler != null) timeoutHandler.removeCallbacksAndMessages(null);
+                  if (webView != null) { webView.destroy(); webView = null; }
+                  SharedPreferences prefs = getApplicationContext()
+                      .getSharedPreferences(ReminderBridgePlugin.PREFS_NAME, Context.MODE_PRIVATE);
+                  if (success) {
+                      prefs.edit().putBoolean("pendingSync", false).putInt("syncFailCount", 0).apply();
+                      ReminderNotifier.maybeShowSyncSuccess(getApplicationContext());
+                  } else {
+                      int fails = prefs.getInt("syncFailCount", 0) + 1;
+                      prefs.edit().putInt("syncFailCount", fails).apply();
+                      // ⭐ 2026-09-13: بيب الفشل كيتدار فكل مرة توقع، ماشي غير بعد 3 محاولات —
+                      // باش المستخدم يحس بالفشل فوريا؛ الإشعار الكامل (فكرة حل التطبيق) يبقى بعد 3.
+                      ReminderNotifier.playFailBeeps(getApplicationContext());
+                      if (fails >= 3) {
+                          ReminderNotifier.maybeShowOpenAppReminder(getApplicationContext());
+                      }
+                  }
+                  stopForeground(true);
+                  stopSelf();
+              }
+              private Notification buildNotification() {
+                  NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                      NotificationChannel channel = nm.getNotificationChannel(CHANNEL_ID);
+                      if (channel == null) {
+                          channel = new NotificationChannel(CHANNEL_ID, "مزامنة تتبع الطلبة", NotificationManager.IMPORTANCE_MIN);
+                          nm.createNotificationChannel(channel);
+                      }
+                  }
+                  return new NotificationCompat.Builder(this, CHANNEL_ID)
+                      .setContentTitle("تتبع الطلبة")
+                      .setContentText("جارٍ التزامن فالخلفية...")
+                      .setSmallIcon(android.R.drawable.stat_notify_sync)
+                      .setPriority(NotificationCompat.PRIORITY_MIN)
+                      .build();
+              }
+              @Nullable
+              @Override
+              public IBinder onBind(Intent intent) { return null; }
+          }
+          EOF
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/MainActivity.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+          import android.Manifest;
+          import android.content.pm.PackageManager;
+          import android.os.Build;
+          import android.os.Bundle;
+          import androidx.core.app.ActivityCompat;
+          import androidx.work.Constraints;
+          import androidx.work.ExistingPeriodicWorkPolicy;
+          import androidx.work.NetworkType;
+          import androidx.work.PeriodicWorkRequest;
+          import androidx.work.WorkManager;
+          import java.util.concurrent.TimeUnit;
+          import com.getcapacitor.BridgeActivity;
+          public class MainActivity extends BridgeActivity {
+            @Override
+            public void onCreate(Bundle savedInstanceState) {
+              registerPlugin(WhatsAppSharePlugin.class);
+              registerPlugin(NotificationPermissionPlugin.class);
+              registerPlugin(ReminderBridgePlugin.class);
+              super.onCreate(savedInstanceState);
+              scheduleBackgroundSync();
+              requestNotificationPermissionIfNeeded();
+            }
+            // ⭐ 2026-09-11 (إضافة — مزامنة فالخلفية): كل 15 دقيقة (أقل حد مسموح
+            // بيه أندرويد لـ WorkManager periodic)، وغير كي تكون الشبكة متوفرة.
+            private void scheduleBackgroundSync() {
+              Constraints constraints = new Constraints.Builder()
+                  .setRequiredNetworkType(NetworkType.CONNECTED)
+                  .build();
+              PeriodicWorkRequest request = new PeriodicWorkRequest.Builder(SyncWorker.class, 15, TimeUnit.MINUTES)
+                  .setConstraints(constraints)
+                  .build();
+              WorkManager.getInstance(getApplicationContext())
+                  .enqueueUniquePeriodicWork("tatabbou_bg_sync", ExistingPeriodicWorkPolicy.KEEP, request);
+            }
+            // ⭐ 2026-09-11 (إضافة): طلب صلاحية الإشعارات مرة وحدة عند فتح التطبيق
+            // (أندرويد 13+ فقط) — إلا كانت مرفوضة قبل، أندرويد ما كيعاودش يبين
+            // الديالوغ، وخصو المستخدم يفعّلها يدويا من الزر الجديد فالإعدادات.
+            private void requestNotificationPermissionIfNeeded() {
+              if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                  ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9021);
+                }
+              }
+            }
+          }
+          EOF
+      - name: Ensure internet permissions are declared
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
+      - name: Declare package visibility for WhatsApp (Android 11+ requirement)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          if ! grep -q '<queries>' "$MANIFEST"; then
+            sed -i '/<\/manifest>/i\    <queries>\n        <package android:name="com.whatsapp" />\n    </queries>' "$MANIFEST"
+          fi
+
+      - name: Add background sync + notification permissions (addition — 2026-09-11)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.POST_NOTIFICATIONS' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />' "$MANIFEST"
+          grep -q 'HeadlessSyncService' "$MANIFEST" || \
+          sed -i '/<\/application>/i\        <service android:name="com.achfrirachid.tatabbou.HeadlessSyncService" android:exported="false" android:foregroundServiceType="dataSync" />' "$MANIFEST"
+
+      - name: Add background sync Gradle dependencies (addition — 2026-09-11)
+        run: |
+          GRADLE=android/app/build.gradle
+          grep -q 'androidx.work:work-runtime' "$GRADLE" || \
+          sed -i '/dependencies {/a\    implementation "androidx.work:work-runtime:2.9.0"\n    implementation "androidx.webkit:webkit:1.11.0"' "$GRADLE"
+      - name: Add google-services.json (needed for @capacitor-firebase/authentication)
+        run: |
+          echo "${GOOGLE_SERVICES_JSON_BASE64}" | tr -d '[:space:]' | base64 -d -i > android/app/google-services.json
+          echo "----- google-services.json content check -----"
+          cat android/app/google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+
+      - name: Add play-services-auth dependency (fixes crash on launch with providers:["google.com"])
+        run: |
+          GRADLE=android/app/build.gradle
+          grep -q 'play-services-auth' "$GRADLE" || \
+          sed -i '/dependencies {/a\    implementation "com.google.android.gms:play-services-auth:21.2.0"' "$GRADLE"
+
+      - name: Apply google-services Gradle plugin (needed for Google Sign-In)
+        run: |
+          PROJECT_GRADLE=android/build.gradle
+          grep -q "com.google.gms:google-services" "$PROJECT_GRADLE" || \
+          sed -i "/dependencies {/a\\        classpath 'com.google.gms:google-services:4.4.2'" "$PROJECT_GRADLE"
+          APP_GRADLE=android/app/build.gradle
+          grep -q "com.google.gms.google-services" "$APP_GRADLE" || \
+          echo "apply plugin: 'com.google.gms.google-services'" >> "$APP_GRADLE"
+
+      - name: Use a fixed debug keystore (so SHA-1 stays stable across builds)
+        run: |
+          mkdir -p ~/.android
+          if [ -f debug.keystore ]; then
+            cp debug.keystore ~/.android/debug.keystore
+          fi
+          keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android || true
+
+      - name: Sync web assets into native project
+        run: npx cap sync android
+
+      - name: Apply custom app icon
+        run: |
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            mkdir -p android/app/src/main/res/mipmap-$d
+            cp android-icon/ic_launcher-$d.png android/app/src/main/res/mipmap-$d/ic_launcher.png
+            cp android-icon/ic_launcher_round-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_round.png
+            cp android-icon/ic_launcher_foreground-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_foreground.png
+            cp android-icon/ic_launcher_background-$d.png android/app/src/main/res/mipmap-$d/ic_launcher_background.png
+          done
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          cp android-icon/ic_launcher.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+          cp android-icon/ic_launcher_round.xml android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+      - name: Build debug APK
+        working-directory: android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
