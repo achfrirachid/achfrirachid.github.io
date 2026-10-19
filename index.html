@@ -8297,12 +8297,15 @@ function drawElegantSignature(ctx, x, y){
   ctx.restore();
 }
 async function buildCertificateCanvas(s){
-  const W = 640, H = 940;
-  const SCALE = 2;
+  // ⭐ مقاس A4 (نسبة 1:1.414) + هامش أبيض آمن M باش الطابعة ما تقصش الإطار + جودة طباعة أعلى
+  const W = 640, H = 923, M = 22;
+  const SCALE = 2.5;
   const canvas = document.createElement('canvas');
-  canvas.width = W*SCALE; canvas.height = H*SCALE;
+  canvas.width = Math.round((W+2*M)*SCALE); canvas.height = Math.round((H+2*M)*SCALE);
   const ctx = canvas.getContext('2d');
   ctx.scale(SCALE, SCALE);
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W+2*M, H+2*M);
+  ctx.translate(M, M);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   const FONT = '"Segoe UI", Tahoma, Arial, sans-serif';
   ctx.direction = 'rtl';
@@ -8339,10 +8342,10 @@ async function buildCertificateCanvas(s){
   ctx.fillStyle = '#c9a227'; ctx.font = `bold 18px ${FONT}`;
   ctx.fillText('✦ ✦ ✦ ✦ ✦ ✦ ✦', W/2, y); y += 38;
   drawCertRibbon(ctx, W/2, y+14, 340, 44, '📜 شهادة الدراسة بالروض', FONT);
-  y += 66;
+  y += 78;
 
   // ===== بطاقة الطالب: الصورة (يسار) + البيانات (يمين) =====
-  const boxTop = y, boxH = 190;
+  const boxTop = y, boxH = 200;
   roundRectPath(ctx, pad-10, boxTop, W-2*(pad-10), boxH, 16);
   ctx.fillStyle = '#f4f9ff'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#9cc3e6'; ctx.stroke();
 
@@ -8379,38 +8382,33 @@ async function buildCertificateCanvas(s){
     ctx.fillStyle = '#e6f6ec'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#2f9e5c'; ctx.stroke();
     ctx.fillStyle = '#146c3a'; ctx.textAlign = 'right'; ctx.fillText(mtxt, rx, yy);
   }
-  y = boxTop + boxH + 34;
+  y = boxTop + boxH + 48;
 
-  ctx.textAlign = 'right'; ctx.fillStyle = '#1f2937'; ctx.font = `bold 18px ${FONT}`;
-  ctx.fillText((fem ? '🏫 قد درست بـ روض جمعية المعرفة، حي تيگريا' : mal ? '🏫 قد درس بـ روض جمعية المعرفة، حي تيگريا' : '🏫 قد درس(ت) بـ روض جمعية المعرفة، حي تيگريا'), W-pad, y); y += 34;
-  ctx.fillText(`وذلك خلال الموسم الدراسي: ${academicSeasonFromDate(s.startDate)}`, W-pad, y); y += 36;
-
-  // ===== مدة الدراسة =====
-  const dTop = y, dH = 126;
-  roundRectPath(ctx, pad-10, dTop, W-2*(pad-10), dH, 14);
-  ctx.fillStyle = '#f1faf4'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#2f9e5c'; ctx.stroke();
-  ctx.textAlign = 'center'; ctx.font = `bold 18px ${FONT}`; ctx.fillStyle = GREEN;
-  ctx.fillText('⏳ مدة الدراسة', W/2, dTop+28);
-  const datePill = (label, date, yb, fill, stroke, ink)=>{
-    ctx.textAlign = 'right'; ctx.font = `bold 15px ${FONT}`; ctx.fillStyle = '#1f2937';
-    const lw2 = ctx.measureText(label).width;
-    ctx.fillText(label, W-pad-4, yb);
-    ctx.font = `bold 18px ${FONT}`;
-    const dw = ctx.measureText(date).width + 26;
-    const dx = W-pad-4-lw2-14-dw;
-    roundRectPath(ctx, dx, yb-22, dw, 32, 11);
-    ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = stroke; ctx.stroke();
-    ctx.fillStyle = ink; ctx.textAlign = 'center'; ctx.fillText(date, dx+dw/2, yb);
-  };
-  const l1 = fem ? 'وقد تابعت دراستها بانتظام من يوم التحاقها 📅' : mal ? 'وقد تابع دراسته بانتظام من يوم التحاقه 📅' : 'وقد تابع(ة) دراسته بانتظام من يوم التحاقه 📅';
-  datePill(l1, startTxt, dTop+68, '#e8f0fe', '#1a56db', '#1a56db');
-  datePill('إلى يوم تسليم هذه الشهادة 🏁', issueTxt, dTop+106, '#fff1e6', '#c2410c', '#c2410c');
-  y = dTop + dH + 30;
+  // ===== عبارة الدراسة (مكان قد درس + الموسم + مربع مدة الدراسة) =====
+  {
+    const p2 = n=>String(n).padStart(2,'0');
+    let sdTxt = '..........';
+    if(s.startDate){ const sd = new Date(s.startDate); if(!isNaN(sd.getTime())) sdTxt = `${sd.getFullYear()}/${p2(sd.getMonth()+1)}/${p2(sd.getDate())}`; }
+    const season = '\u202A' + academicSeasonFromDate(s.startDate) + '\u202C';
+    const verb = fem ? 'تابعت دراستها' : mal ? 'تابع دراسته' : 'تابع(ة) دراسته';
+    const joined = fem ? 'التحاقها' : 'التحاقه';
+    const ptxt = `${verb} بانتظام بروض جمعية المعرفة، حي تيگريا بطانطان، ابتداءً من يوم ${joined} بتاريخ ${sdTxt} برسم الموسم الدراسي ${season}.`;
+    ctx.textAlign = 'right'; ctx.fillStyle = '#1f2937'; ctx.font = `bold 18px ${FONT}`;
+    const words = ptxt.split(' '); const lw = W-2*pad-4; let line = '';
+    const out = [];
+    for(const w of words){
+      const t = line ? line+' '+w : w;
+      if(ctx.measureText(t).width > lw && line){ out.push(line); line = w; } else line = t;
+    }
+    if(line) out.push(line);
+    out.forEach(ln=>{ ctx.fillText(ln, W-pad, y); y += 40; });
+    y += 10;
+  }
 
   ctx.font = `bold 13.6px ${FONT}`; ctx.fillStyle = '#374151'; ctx.textAlign = 'right';
   ctx.fillText((fem ? 'سلمت هذه الشهادة للمعنية بالأمر للإدلاء بها عند الحاجة.' : 'سلمت هذه الشهادة للمعني بالأمر للإدلاء بها عند الحاجة.'), W-pad, y); y += 36;
 
-  y += 6;
+  y += 24;
 
   // ===== تذييل =====
   const footY = y;
