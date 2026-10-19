@@ -8297,7 +8297,7 @@ function drawElegantSignature(ctx, x, y){
   ctx.restore();
 }
 async function buildCertificateCanvas(s){
-  const W = 640, H = 1010;
+  const W = 640, H = 940;
   const SCALE = 2;
   const canvas = document.createElement('canvas');
   canvas.width = W*SCALE; canvas.height = H*SCALE;
@@ -8374,7 +8374,7 @@ async function buildCertificateCanvas(s){
     ctx.font = `bold 19px ${FONT}`;
     let mw = ctx.measureText(mtxt).width;
     if(mw > maxW-24){ ctx.font = `bold 15px ${FONT}`; mw = ctx.measureText(mtxt).width; }
-    const ph = 34, px = rx+10-(mw+28), py = yy-23;
+    const ph = 34, px = rx+2-(mw+28), py = yy-23;
     roundRectPath(ctx, px, py, mw+28, ph, 12);
     ctx.fillStyle = '#e6f6ec'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#2f9e5c'; ctx.stroke();
     ctx.fillStyle = '#146c3a'; ctx.textAlign = 'right'; ctx.fillText(mtxt, rx, yy);
@@ -8416,13 +8416,13 @@ async function buildCertificateCanvas(s){
   const footY = y;
   ctx.textAlign = 'right'; ctx.font = `bold 16px ${FONT}`; ctx.fillStyle = '#374151';
   ctx.fillText('📍 حرر بـ: طانطان', W-pad, footY);
-  ctx.ctx.fillStyle = '#c2410c'; ctx.font = `bold 18px ${FONT}`; ctx.fillText(`📅 بتاريخ: ${issueTxt}`, W-pad, footY+26);
+  ctx.fillStyle = '#c2410c'; ctx.font = `bold 18px ${FONT}`; ctx.fillText(`📅 بتاريخ: ${issueTxt}`, W-pad, footY+26);
 
   ctx.textAlign = 'left'; const lx = 66;
   ctx.font = `bold 16px ${FONT}`; ctx.fillStyle = '#374151';
   ctx.fillText('رئيسة الجمعية', lx, footY);
   ctx.fillStyle = '#111827'; ctx.fillText('الإمضاء', lx, footY+22);
-  drawCertSignature(ctx, lx+8, footY+32);
+  drawCertSignature(ctx, lx+8, footY+46);
   ctx.textAlign = 'left';
 
   const stampR = 46, stampCX = W/2, stampCY = footY+26;
