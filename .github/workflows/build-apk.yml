@@ -344,6 +344,13 @@ jobs:
             sed -i '/<\/manifest>/i\    <queries>\n        <package android:name="com.whatsapp" />\n    </queries>' "$MANIFEST"
           fi
 
+      - name: Enable large heap (more app memory, fewer crashes with many student photos)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android:largeHeap' "$MANIFEST" || \
+          sed -i '0,/<application/s//<application android:largeHeap="true"/' "$MANIFEST"
+          grep -n 'largeHeap' "$MANIFEST"
+
       - name: Add notification permission (needed for monthly/holiday reminders)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
