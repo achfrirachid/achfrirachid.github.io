@@ -1845,7 +1845,7 @@ async function pruneOrphanPhotos(){
 // كود مسار، تاريخ الازدياد، تواريخ الخلاص — باش أي تعديل يبان فالوصل فورا)
 function receiptCardFingerprint(s){
   try{
-    return JSON.stringify(['deco3', s.photo?(s.photo.length+':'+s.photo.slice(-24)):'0', s.name||'', s.phone||'', s.group||'', s.monthlyAmount||0, s.paidMonths||[], s.paidDates||null, s.startDate||'', s.regId||'', s.masarId||'', s.birthDate||'', isoDate(new Date())]);
+    return JSON.stringify(['deco5', s.photo?(s.photo.length+':'+s.photo.slice(-24)):'0', s.name||'', s.phone||'', s.group||'', s.monthlyAmount||0, s.paidMonths||[], s.paidDates||null, s.startDate||'', s.regId||'', s.masarId||'', s.birthDate||'', isoDate(new Date())]);
   }catch(e){ return 'fp-'+Date.now(); }
 }
 
@@ -8035,7 +8035,8 @@ async function drawReceiptBase(ctx, s, W, HEADER_H, FONT){
   ctx.font = `bold 28px ${FONT}`;
   ctx.fillText('🧾 وصل أداء', W/2, 112);
 
-  const cx = W/2, cy = HEADER_H-60, r = 66;
+  // ⭐ 2026-11-05 (بطلب المستخدم): الصورة فجهة اليمين، باش ما تغطيش "وصل أداء" اللي فالوسط
+  const r = 66, cx = 505, cy = HEADER_H-60; // نفس الحجم والارتفاع، غير زحزحة خفيفة لليمين (فوق "يوم الالتحاق")
   // 2026-10-20 (بطلب المستخدم): الدائرة الذهبية (صورة/قبعة التخرج) كتبان غير ملي كاينة صورة الطالب.
   // بلا صورة: الوصل من الفوق عادي، بلا دائرة ولا قبعة.
   let photoDrawn = false;
@@ -16907,7 +16908,7 @@ function rbOpen(){
 }
 function receiptBaseFingerprint(s){
   try{
-    return JSON.stringify(['rb3', s.photo?(s.photo.length+':'+s.photo.slice(-24)):'0', s.name||'', s.phone||'', s.group||'',
+    return JSON.stringify(['rb5', s.photo?(s.photo.length+':'+s.photo.slice(-24)):'0', s.name||'', s.phone||'', s.group||'',
       s.monthlyAmount||0, s.startDate||'', s.regId||'', s.masarId||'', s.birthDate||'']);
   }catch(e){ return 'rb'+Date.now(); }
 }
