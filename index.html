@@ -48,6 +48,7 @@ if (navigator.storage && navigator.storage.persist) {
     --card-bg:#fff;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;will-change:auto;}
+  button,a,input,select,.card,.pill-btn,.status-pill{touch-action:manipulation;} /* ⭐ 2026-11-05: بلا تأخير 300ms فالدوسة */
   html{scroll-behavior:smooth;}
   .card{will-change:contents;}
   html{overflow-x:hidden;width:100%;}
@@ -1802,6 +1803,7 @@ async function mcachePrune(){
     };
   }catch(e){ /* صامت — التنظيف تحسين فقط */ }
   pruneOrphanPhotos();
+  try{ if(typeof pruneOrphanReceiptBase==='function') pruneOrphanReceiptBase(); }catch(e){}
 }
 // ⭐ 2026-09-17: كنمسحو صور الطلبة اللي تحذفو نهائيا (ماعادوش موجودين فـ
 // `students`) من IDB_PHOTOS_STORE — نفس مبدأ mcachePrune، باش المخزن
@@ -6431,19 +6433,29 @@ function toggleMonth(id, idx){
     playCancelTone();
     speak('لم يتم الدفع');
   }
-  save();
-  try{ __nbDirty = true; __flushNativeBackups(); }catch(e){} // ⭐ كتابة فورية للملفات (Documents/Download/مخفي) بلا انتظار 2.5 ثانية
-  // ⭐ فيكس (بطلب المستخدم — الصورة/"خالص" كانو كيضيعو إلا تحذف/تثبت التطبيق
-  // فأول ثواني بعد الضغطة): save() العادي كيستنى SYNC_DEBOUNCE_DELAY_MS (5 ثواني)
-  // قبل ما يبدا يصيفط للسحابات — إلا تحذف التطبيق فهاد النافذة، التعديل يضيع
-  // نهائيا حيت ماوصلش حتى لسحابة وحدة. تسجيل/إلغاء "خالص" مهم بزاف باش يتسنى،
-  // فكنصيفطوه فورا هنا (بلا ما نتسناو الـ 5 ثواني)، موازاة مع المزامنة العادية.
-  if(navigator.onLine){ try{ syncNowIfPending(true); }catch(e){} }
+  // ⭐ 2026-11-05 (سرعة قصوى): الحفظ الثقيل (save + render + كتابة الملفات + السحابات) كان كيتنفذ
+  // قبل الوصل وكيبلوكي الخيط الرئيسي. دابا: الخلاص كيتسجل فورا فالسجلات الخفيفة (فوق: pjRecord/
+  // feesLedger/enqueueOfflineOperation) + علامة PENDING_SYNC هنا، والوصل كيبان أول، والحفظ الكامل
+  // كيتنفذ مباشرة من بعد ما يبان (ولا فأقصى 1.5 ثانية، ولا فورا ملي التطبيق يتخبى).
+  try{ localStorage.setItem(currentProfileStorageKey(PENDING_SYNC_KEY), '1'); }catch(e){}
+  let _persisted = false;
+  const _persist = ()=>{
+    if(_persisted) return; _persisted = true;
+    if(window.__pendingPersist === _persist) window.__pendingPersist = null;
+    try{ save(); }catch(e){ console.error('toggleMonth save', e); }
+    try{ __nbDirty = true; __flushNativeBackups(); }catch(e){} // ⭐ كتابة فورية للملفات (Documents/Download/مخفي)
+    if(navigator.onLine){ try{ syncNowIfPending(true); }catch(e){} } // ⭐ إرسال فوري للسحابات بلا انتظار 5 ثواني
+  };
   toast(s.paidMonths[idx] ? 'تسجل الخلاص ✅' : 'تلغى الخلاص');
   if(s.paidMonths[idx]){
-    handlePaidReceiptAutoSend(s);
+    window.__pendingPersist = _persist;
+    setTimeout(_persist, 1500); // حد أقصى — الحفظ ما كيتأخرش أكثر من هاد المدة
+    handlePaidReceiptAutoSend(s, _persist);
+  } else {
+    _persist();
   }
 }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'hidden' && typeof window.__pendingPersist === 'function'){ try{ window.__pendingPersist(); }catch(e){} } });
 // ============================================================
 // 🆕 2026-08-31 — بطلب المستخدم: بمجرد ما يتسجل الخلاص، الوصل يتصيفط
 // تلقائيا لواتساب ولي الأمر، بلا ضغطة مطولة وبلا أي تدخل يدوي:
@@ -6457,7 +6469,9 @@ function toggleMonth(id, idx){
 //     (بلا ما تبان قائمة اختيار الأرقام) — غير خاص المستخدم يدوس 📎
 //     ويختار آخر صورة، ويصيفط.
 // ============================================================
-async function handlePaidReceiptAutoSend(s){
+async function handlePaidReceiptAutoSend(s, onShown){
+  // ⭐ 2026-11-05: البطاقة كتفتح فورا (spinner) من أول لحظة، قبل ما نبداو نبنيو الصورة
+  try{ rcardPhone = s.phone ? normalizePhone(s.phone) : ''; rcardStudentName = s.name; openReceiptCardLoading(`وصل أداء — ${s.name}`); }catch(e){}
   // ⭐ تسريع كبير: كنبنيو صورة الوصل مرة وحدة فقط هنا ونعاود نخدمو بيها فجوج
   // الطرق تحت. من قبل كانت الصورة كتتبنى جوج ديال المرات (مرة للإرسال الصامت
   // ومرة أخرى للعرض) — وهادشي كان السبب الرئيسي فالثقل بعد كل ضغطة "خالص".
@@ -6474,26 +6488,26 @@ async function handlePaidReceiptAutoSend(s){
   // بلا ما نستناو أي طلب شبكة (الإرسال لواتساب) قبل ما تبان. الإرسال دابا
   // كيخدم فالخلفية بعد ما تكون البطاقة بانت للمستخدم، باش الضغطة على
   // "خالص" تحس بسرعة فورية.
-  await autoOpenReceiptAfterPaid(s, sharedCanvas, sharedBlob);
-
-  // ⭐ 2026-09-12 (بطلب المستخدم): بلا Green API (ماشي معد)، وبلا شرط
-  // وجود رقم هاتف مسجل — واتساب خاصو يتفتح دايما بمجرد ما يبان الوصل،
-  // بلائحة الكونتاكتات باش المستخدم يختار الشخص بيدو (رقم الهاتف
-  // المسجل، إلا كان موجود، غير معلومة إضافية فالبطاقة، ماشي شرط للمشاركة).
-  const blobToShare = rcardBlob || sharedBlob;
-  if(blobToShare){
+  // ⭐ 2026-11-05: واتساب كيتحضر (كتابة الملف + intent) بالتوازي مع ظهور الوصل، بلا ما نستناو البطاقة تكمل
+  let _waStarted = false;
+  const _startWa = (blobToShare)=>{
+    if(_waStarted || !blobToShare) return; _waStarted = true;
     (async ()=>{
       try{
         try{ if(typeof markWhatsAppShareLaunched === 'function') markWhatsAppShareLaunched(); }catch(e){}
         await autoSendToWhatsApp({
           blob: blobToShare,
-          filename: rcardFilename || `وصل-${s.name}.jpg`,
+          filename: `وصل-${s.name}.jpg`,
           caption: `وصل أداء ${s.name}${(()=>{ const _pm=normalizePaidMonths(s); let _li=-1; _pm.forEach((p,i)=>{ if(p) _li=i; }); return (_li>=0 && addMonths(s.startDate,_li) > new Date()) ? ' (تم الدفع)' : ''; })()}`,
           title: 'وصل أداء'
         });
       }catch(e){ console.warn('handlePaidReceiptAutoSend (autoSendToWhatsApp) خطأ:', e); }
     })();
-  }
+  };
+  _startWa(sharedBlob);
+  await autoOpenReceiptAfterPaid(s, sharedCanvas, sharedBlob);
+  try{ if(typeof onShown === 'function') onShown(); }catch(e){} // الوصل بان → الحفظ الكامل دابا
+  _startWa(rcardBlob); // احتياط: إلا ما تبناش blob فالأول
 }
 // ============================================================
 // 🆕 بمجرد ما يتسجل الخلاص (بعد الصوت "تم الدفع"): كنحلو مباشرة خانة
@@ -7124,6 +7138,7 @@ async function deleteStudent(id){
   students = students.filter(x=>x.id!==id);
   if(target) logDeletedStudent(target);
   revealedIds.delete(id);
+  try{ spDeleteFile(id); }catch(e){}
   enqueueOfflineOperation(id, 'delete', target || null);
   try{ mcachePrune(); pruneOrphanPhotos(); cleanupOldAppCaches(true); }catch(e){}
   // ⭐ حماية من أي restore قديم قبل ما تكمل مزامنة الحذف.
@@ -7167,7 +7182,7 @@ function resizeImage(file, maxSize){
         const rctx = canvas.getContext('2d');
         rctx.imageSmoothingEnabled = true; rctx.imageSmoothingQuality = 'high';
         rctx.drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.92)); // ⭐ جودة أعلى (كانت 0.78) — تفادي التضبيب فصورة الطالب(ة) داخل البطاقات
+        resolve(canvas.toDataURL('image/jpeg', 0.85)); // ⭐ 2026-11-05: 400px/0.85 ≈ 20-35KB للصورة (كانت 800px ≈ 150KB+) — كافية للدائرة فالوصل
       };
       img.onerror = reject;
       img.src = e.target.result;
@@ -7554,7 +7569,7 @@ async function saveStudent(){
   const fileInput = document.getElementById('fPhoto');
   let photoData = null;
   if(fileInput.files && fileInput.files[0]){
-    try{ photoData = await resizeImage(fileInput.files[0], 800); }
+    try{ photoData = await resizeImage(fileInput.files[0], 400); }
     catch(e){ photoData = null; }
   }
   if(editingId){
@@ -7564,6 +7579,7 @@ async function saveStudent(){
       s.birthDate = birthDate; s.masarId = masarId; s.group = selectedStudentGroup; s.gender = selectedStudentGender || null;
       if(photoData) s.photo = photoData;
       else if(removePhotoFlag) s.photo = null;
+      try{ if(photoData){ spWriteFile(s); prewarmStudentCards(s); /* نسخ فوري فالوصل */ } else if(removePhotoFlag) spDeleteFile(s.id); }catch(e){}
     }
     if(s) enqueueOfflineOperation(s.id, 'update', s);
     editingId = null;
@@ -7590,6 +7606,7 @@ async function saveStudent(){
     paidDates: Array(TOTAL_MONTHS).fill(null)
   };
   students.push(newStudentEntry);
+  try{ if(newStudentEntry.photo){ spWriteFile(newStudentEntry); prewarmStudentCards(newStudentEntry); /* نسخ فوري فالوصل */ } }catch(e){}
   enqueueOfflineOperation(newStudentEntry.id, 'add', newStudentEntry);
   // ⭐ فيكس 2026-09-09: نفس التعليل فوق — كانت هاد السطر كتفك الحماية (removeItem)
   // مباشرة بعد الإضافة، بحال هاد الطالب الجديد بلا نت مايتحفظش. دابا كنحطو
@@ -11309,6 +11326,17 @@ async function ghUploadBackup(manual) {
 
   if (manual) toast('⏳ كيرفع الملفات لـ GitHub...');
 
+  // ⭐ 2026-11-05: الصور (بلا حد 1MB ديال القراءة) كتتصيفط فملف مستقل، بصمة مستقلة، وفشلو ما كيأثرش على النسخة
+  try{
+    const photosMap = {}; students.forEach(s=>{ if(s && s.id && s.photo) photosMap[s.id] = s.photo; });
+    const photosContent = JSON.stringify(photosMap);
+    const phHash = cloudDatasetHash(photosContent);
+    const phKey = ghLastPushedHashKey() + ':photos';
+    if(Object.keys(photosMap).length && localStorage.getItem(phKey) !== phHash){
+      const phRes = await ghUploadFile(`photos_${ownerName}.json`, photosContent, manual);
+      if(phRes && phRes.ok) localStorage.setItem(phKey, phHash);
+    }
+  }catch(e){}
   const backupRes = await ghUploadFile(`backup_${ownerName}.json`, backupContent, manual);
   const reportRes = await ghUploadFile(`ملف_${ownerName}.html`, reportContent, manual);
   const backupOk = backupRes.ok, reportOk = reportRes.ok;
@@ -14704,7 +14732,7 @@ async function checkIncomingWhatsAppStudents(){
             try{
               const imgRes = await fetch(downloadUrl);
               const blob = await imgRes.blob();
-              photoData = await resizeImage(blob, 800);
+              photoData = await resizeImage(blob, 400);
             }catch(e){ /* الصورة ماتحملاتش، كنكملو بلا صورة */ }
           }
           students.push({
@@ -16213,7 +16241,7 @@ __taskScheduler.register('hourlyAutoCleanup', HOURLY_CLEANUP_MS, hourlyAutoClean
 /* ⭐ ضغط الصور القديمة الكبيرة (مرة وحدة، فالخلفية) — كيخفف التصفح والمزامنة.
    بلا تدخل فـ openReceiptCard/الكاش/النسخ الاحتياطي (هادو ديجا مضبوطين فالملف). */
 (function(){
-  const BIG = 250000, MAX = 800, WAIT_START = 20000;
+  const BIG = 60000, MAX = 400, WAIT_START = 5000; // ⭐ 2026-11-05: تصغير الصور القديمة (800px→400px) كيبدا بكري باش التطبيق يخف من أول فتح
   async function compressLegacyPhotos(){
     try{
       if(typeof students === 'undefined' || !Array.isArray(students) || !students.length) return;
@@ -16231,7 +16259,7 @@ __taskScheduler.register('hourlyAutoCleanup', HOURLY_CLEANUP_MS, hourlyAutoClean
           const w = Math.max(1, Math.round(img.width * sc)), h = Math.max(1, Math.round(img.height * sc));
           const c = document.createElement('canvas'); c.width = w; c.height = h;
           c.getContext('2d').drawImage(img, 0, 0, w, h);
-          const small = c.toDataURL('image/jpeg', 0.82);
+          const small = c.toDataURL('image/jpeg', 0.85);
           if(small && small.length < s.photo.length){ s.photo = small; changed = true; }
         }catch(e){}
         await new Promise(r=>setTimeout(r, 60)); // نفسو للمعالج بين طالب وطالب
@@ -16917,6 +16945,20 @@ function snapshotReceiptBase(canvas, id, fp, y){
   }catch(e){}
 }
 
+// ⭐ 2026-11-05: الطبقة المخزنة ديال الوصل (فيها صورة الطالب) كتتمسح مع الطالب فقط
+async function pruneOrphanReceiptBase(){
+  try{
+    const validIds = new Set((typeof students !== 'undefined' ? students : []).map(x=>String(x.id)));
+    if(!validIds.size) return;
+    const db = await rbOpen();
+    if(!db) return;
+    const tx = db.transaction(RECEIPT_BASE_STORE, 'readwrite');
+    const store = tx.objectStore(RECEIPT_BASE_STORE);
+    const req = store.getAllKeys();
+    req.onsuccess = ()=>{ (req.result||[]).forEach(k=>{ if(!validIds.has(String(k))) store.delete(k); }); };
+  }catch(e){}
+}
+
 // ── 2) نقل زرّي الرسائل والمزامنة للهيدر (فوق، جنب الإدارة) ──
 function integrateMsgPills(){
   try{
@@ -17326,6 +17368,97 @@ body.teacher-ui #hdrBellBtn{order:2!important;grid-column:3/4!important;}
     }).catch(function(){ asking = false; });
   }, true);
 })();
+</script>
+
+<script>
+// ============================================================
+// ⭐ 2026-11-05 — حفظ صور الطلبة كملفات مستقلة (بلا خانة إضافية — كيخدم من زر "📷 تصوير / اختيار صورة" ديال خانة الطالب).
+// كل صورة = ملف Documents/صور الطلبة/<id>.jpg (+ index.json فيه السمية) —
+// ما كيتمسحوش بـ Clear data ولا مسح التطبيق. كيتمسح الملف غير ملي يتحذف الطالب.
+// عند فتح التطبيق: أي طالب بلا صورة كنرجعوها ليه من الملف (بالـid، ولا بالسمية الفريدة).
+// الصور الموجودة أصلا فالتطبيق كتتنسخ للمجلد وحدها (backfill).
+// ============================================================
+const SP_DIR = 'صور الطلبة';
+const SP_INDEX = SP_DIR + '/index.json';
+let _spChain = Promise.resolve();
+function spFS(){ try{ return isNativeApp() ? getFilesystemPlugin() : null; }catch(e){ return null; } }
+async function spReadIndex(FS){
+  try{
+    const r = await FS.readFile({ path: SP_INDEX, directory:'DOCUMENTS', encoding:'utf8' });
+    const o = JSON.parse(r.data); return (o && typeof o==='object') ? o : {};
+  }catch(e){ return {}; }
+}
+async function spWriteIndex(FS, idx){
+  try{ await FS.writeFile({ path: SP_INDEX, directory:'DOCUMENTS', encoding:'utf8', data: JSON.stringify(idx), recursive:true }); }catch(e){}
+}
+function spWriteFile(s){
+  const run = async ()=>{
+    try{
+      const FS = spFS(); if(!FS || !s || !s.id || !s.photo) return false;
+      await requestFilesystemPermissionIfNeeded(FS);
+      try{ await FS.mkdir({ path: SP_DIR, directory:'DOCUMENTS', recursive:true }); }catch(e){}
+      await FS.writeFile({ path: SP_DIR + '/' + s.id + '.jpg', directory:'DOCUMENTS', data: _splitDataUrlToBase64(s.photo), recursive:true });
+      const idx = await spReadIndex(FS);
+      idx[s.id] = { name: s.name || '', regId: s.regId || null, at: Date.now() };
+      await spWriteIndex(FS, idx);
+      return true;
+    }catch(e){ return false; }
+  };
+  _spChain = _spChain.then(run, run); return _spChain;
+}
+function spDeleteFile(id){
+  const run = async ()=>{
+    try{
+      const FS = spFS(); if(!FS || !id) return false;
+      try{ await FS.deleteFile({ path: SP_DIR + '/' + id + '.jpg', directory:'DOCUMENTS' }); }catch(e){}
+      const idx = await spReadIndex(FS);
+      if(idx[id]){ delete idx[id]; await spWriteIndex(FS, idx); }
+      return true;
+    }catch(e){ return false; }
+  };
+  _spChain = _spChain.then(run, run); return _spChain;
+}
+let _spRestoring = false;
+async function spRestoreMissing(){
+  if(_spRestoring) return; _spRestoring = true;
+  try{
+    const FS = spFS();
+    if(!FS || typeof students === 'undefined' || !Array.isArray(students) || !students.length) return;
+    const idx = await spReadIndex(FS);
+    const byName = {};
+    Object.keys(idx).forEach(k=>{ const n=(idx[k]&&idx[k].name||'').trim(); if(n){ (byName[n]=byName[n]||[]).push(k); } });
+    const nameCount = {}; students.forEach(x=>{ const n=(x.name||'').trim(); nameCount[n]=(nameCount[n]||0)+1; });
+    let restored = 0;
+    for(const st of students){
+      if(!st || st.photo) continue;
+      const n = (st.name||'').trim();
+      const cands = [];
+      if(idx[st.id]) cands.push(st.id);
+      else if(n && byName[n] && byName[n].length===1 && nameCount[n]===1) cands.push(byName[n][0]);
+      for(const fid of cands){
+        try{
+          const r = await FS.readFile({ path: SP_DIR + '/' + fid + '.jpg', directory:'DOCUMENTS' });
+          if(r && r.data){ st.photo = 'data:image/jpeg;base64,' + r.data; restored++; break; }
+        }catch(e){}
+      }
+    }
+    if(restored){
+      try{ await idbSavePhotos(students); }catch(e){}
+      try{ save(); }catch(e){}
+      try{ render(); }catch(e){}
+      try{ toast('🖼️ تسترجعو ' + restored + ' صورة ديال الطلبة'); }catch(e){}
+    }
+    for(const st of students){
+      if(st && st.photo && !idx[st.id]){ await spWriteFile(st); await new Promise(r=>setTimeout(r,40)); }
+    }
+  }catch(e){}
+  finally{ _spRestoring = false; }
+}
+window.addEventListener('load', ()=>{
+  setTimeout(spRestoreMissing, 6000);
+  setTimeout(spRestoreMissing, 20000);
+});
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') setTimeout(spRestoreMissing, 1500); });
 </script>
 </body>
 </html>
