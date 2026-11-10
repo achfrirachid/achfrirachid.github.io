@@ -307,13 +307,199 @@ jobs:
           }
           EOF
           # 🔗 مزامنة محلية بين الهاتفين عبر الروتر (LanSync)
+          # ⭐ مزامنة تلقائية: خدمة أمامية + استقبال بعد إعادة تشغيل الهاتف
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/LanSyncService.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.wifi.WifiManager;
+          import android.os.Build;
+          import android.os.IBinder;
+          import android.os.PowerManager;
+
+          import java.io.BufferedReader;
+          import java.io.File;
+          import java.io.FileOutputStream;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.net.InetSocketAddress;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.atomic.AtomicLong;
+
+          /** خدمة أمامية دائمة: كتبقى كتسمع على البورت حتى والهاتف مقفول، وكتخزن الرسائل فملفات حتى يفتح التطبيق. */
+          public class LanSyncService extends Service {
+              static final int PORT = 8765;
+              private static final String CH = "lansync_ch";
+              private static final AtomicLong SEQ = new AtomicLong(0);
+              private ServerSocket server;
+              private volatile boolean running = false;
+              private ExecutorService pool;
+              private PowerManager.WakeLock wl;
+              private WifiManager.WifiLock wfl;
+
+              static File queueDir(Context c) {
+                  File d = new File(c.getFilesDir(), "lansync_queue");
+                  if (!d.exists()) d.mkdirs();
+                  return d;
+              }
+
+              @Override public IBinder onBind(Intent i) { return null; }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  try {
+                      Notification n = buildNotification();
+                      if (Build.VERSION.SDK_INT >= 34) startForeground(7765, n, 0x40000000); // FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                      else startForeground(7765, n);
+                  } catch (Throwable t) { }
+                  try {
+                      PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                      if (wl == null) { wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tatabbou:lansync"); wl.setReferenceCounted(false); }
+                      if (!wl.isHeld()) wl.acquire();
+                  } catch (Throwable t) { }
+                  try {
+                      WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                      if (wfl == null) { wfl = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "tatabbou:lansync"); wfl.setReferenceCounted(false); }
+                      if (!wfl.isHeld()) wfl.acquire();
+                  } catch (Throwable t) { }
+                  if (!running) startServer();
+                  return START_STICKY;
+              }
+
+              private Notification buildNotification() {
+                  NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                  if (Build.VERSION.SDK_INT >= 26 && nm != null) {
+                      NotificationChannel ch = new NotificationChannel(CH, "مزامنة الهاتفين", NotificationManager.IMPORTANCE_LOW);
+                      nm.createNotificationChannel(ch);
+                  }
+                  Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
+                  b.setContentTitle("🔗 مزامنة الهاتفين خدامة")
+                   .setContentText("كتسنى التعديلات من الهاتف الآخر عبر الروتر")
+                   .setSmallIcon(android.R.drawable.stat_notify_sync)
+                   .setOngoing(true);
+                  try {
+                      Intent li = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                      if (li != null) {
+                          int fl = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0;
+                          b.setContentIntent(PendingIntent.getActivity(this, 0, li, fl));
+                      }
+                  } catch (Throwable t) { }
+                  return b.build();
+              }
+
+              private void notifyArrived() {
+                  try {
+                      NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CH) : new Notification.Builder(this);
+                      b.setContentTitle("📥 وصلات تعديلات من الهاتف الآخر")
+                       .setContentText("حل التطبيق باش تتسجل فالهاتف")
+                       .setSmallIcon(android.R.drawable.stat_notify_sync).setAutoCancel(true);
+                      Intent li = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                      if (li != null) b.setContentIntent(PendingIntent.getActivity(this, 1, li, Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0));
+                      if (nm != null) nm.notify(7766, b.build());
+                  } catch (Throwable t) { }
+              }
+
+              private void startServer() {
+                  pool = Executors.newFixedThreadPool(6);
+                  try {
+                      server = new ServerSocket();
+                      server.setReuseAddress(true);
+                      server.bind(new InetSocketAddress(PORT));
+                      running = true;
+                  } catch (Throwable t) { running = false; return; }
+                  new Thread(new Runnable() {
+                      public void run() {
+                          while (running) {
+                              try {
+                                  final Socket c = server.accept();
+                                  pool.execute(new Runnable() { public void run() { handle(c); } });
+                              } catch (Throwable t) { if (!running) break; }
+                          }
+                      }
+                  }, "lansync-accept").start();
+              }
+
+              private void handle(Socket c) {
+                  try {
+                      c.setSoTimeout(30000);
+                      BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"), 65536);
+                      String line = r.readLine();
+                      OutputStream o = c.getOutputStream();
+                      if ("LANSYNC_PING".equals(line)) {
+                          o.write("LANSYNC_PONG\n".getBytes("UTF-8")); o.flush();
+                      } else if (line != null && line.startsWith("LANSYNC_MSG ")) {
+                          String from = c.getInetAddress().getHostAddress();
+                          String data = line.substring(12);
+                          File dir = queueDir(this);
+                          String name = String.format("%015d_%06d", System.currentTimeMillis(), SEQ.incrementAndGet());
+                          File tmp = new File(dir, name + ".tmp");
+                          FileOutputStream fo = new FileOutputStream(tmp);
+                          fo.write((from + "\n" + data).getBytes("UTF-8"));
+                          fo.flush(); fo.close();
+                          if (tmp.renameTo(new File(dir, name + ".msg"))) {
+                              o.write("OK\n".getBytes("UTF-8")); o.flush();
+                              if (LanSyncPlugin.instance == null) notifyArrived();
+                              LanSyncPlugin.pokePending();
+                          }
+                      }
+                  } catch (Throwable t) { }
+                  finally { try { c.close(); } catch (Throwable t) { } }
+              }
+
+              @Override
+              public void onDestroy() {
+                  running = false;
+                  try { if (server != null) server.close(); } catch (Throwable t) { }
+                  server = null;
+                  try { if (pool != null) pool.shutdownNow(); } catch (Throwable t) { }
+                  try { if (wl != null && wl.isHeld()) wl.release(); } catch (Throwable t) { }
+                  try { if (wfl != null && wfl.isHeld()) wfl.release(); } catch (Throwable t) { }
+                  super.onDestroy();
+              }
+          }
+          EOF
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/LanSyncBootReceiver.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.os.Build;
+
+          /** بعد ما يتشعل الهاتف من جديد: إلا كانت المزامنة مفعلة، كتشغل الخدمة أوتوماتيك بلا ما يتحل التطبيق. */
+          public class LanSyncBootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  try {
+                      if (!ctx.getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE).getBoolean("on", false)) return;
+                      Intent i = new Intent(ctx, LanSyncService.class);
+                      if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i); else ctx.startService(i);
+                  } catch (Throwable t) { }
+              }
+          }
+          EOF
           cat > android/app/src/main/java/com/achfrirachid/tatabbou/LanSyncPlugin.java << 'EOF'
           package com.achfrirachid.tatabbou;
 
           import android.content.Context;
+          import android.content.Intent;
           import android.net.ConnectivityManager;
           import android.net.Network;
           import android.net.NetworkCapabilities;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.PowerManager;
+          import android.provider.Settings;
 
           import com.getcapacitor.JSArray;
           import com.getcapacitor.JSObject;
@@ -323,15 +509,19 @@ jobs:
           import com.getcapacitor.annotation.CapacitorPlugin;
 
           import java.io.BufferedReader;
+          import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileInputStream;
+          import java.io.InputStream;
           import java.io.InputStreamReader;
           import java.io.OutputStream;
           import java.net.Inet4Address;
           import java.net.InetAddress;
           import java.net.InetSocketAddress;
           import java.net.NetworkInterface;
-          import java.net.ServerSocket;
           import java.net.Socket;
           import java.util.ArrayList;
+          import java.util.Arrays;
           import java.util.Collections;
           import java.util.List;
           import java.util.concurrent.ExecutorService;
@@ -339,14 +529,23 @@ jobs:
           import java.util.concurrent.Future;
           import java.util.concurrent.TimeUnit;
 
-          /** مزامنة محلية بين هاتفين عبر نفس الروتر (بلا إنترنت). النص كيجي مشفر من JS، هنا غير نقل. */
+          /** مزامنة محلية بين هاتفين عبر نفس الروتر (بلا إنترنت). السيرفر كيخدم فـ LanSyncService (خدمة أمامية)، هنا غير الإرسال والبحث وقراءة الرسائل المخزنة. */
           @CapacitorPlugin(name = "LanSync")
           public class LanSyncPlugin extends Plugin {
               static final int PORT = 8765;
-              private ServerSocket server;
-              private volatile boolean running = false;
+              static volatile LanSyncPlugin instance;
               private final ExecutorService pool = Executors.newFixedThreadPool(8);
               private final ExecutorService scanPool = Executors.newFixedThreadPool(48);
+
+              @Override
+              public void load() { instance = this; }
+
+              static void pokePending() {
+                  LanSyncPlugin p = instance;
+                  if (p != null) {
+                      try { p.notifyListeners("pending", new JSObject()); } catch (Throwable t) { }
+                  }
+              }
 
               private Network wifiNet() {
                   try {
@@ -359,7 +558,7 @@ jobs:
                   return null;
               }
 
-              // مهم: الروتر بلا إنترنت → أندرويد يمكن يدوز بالداتا؛ كنربطو السوكيت بـ Wi-Fi مباشرة
+              // الروتر بلا إنترنت → أندرويد يمكن يدوز بالداتا؛ كنربطو السوكيت بـ Wi-Fi مباشرة
               private Socket newSocket() throws Exception {
                   Socket s = new Socket();
                   Network n = wifiNet();
@@ -386,22 +585,11 @@ jobs:
 
               @PluginMethod
               public void start(final PluginCall call) {
-                  if (running) { JSObject r = new JSObject(); r.put("ip", localIp()); call.resolve(r); return; }
                   try {
-                      server = new ServerSocket();
-                      server.setReuseAddress(true);
-                      server.bind(new InetSocketAddress(PORT));
-                      running = true;
-                      new Thread(new Runnable() {
-                          public void run() {
-                              while (running) {
-                                  try {
-                                      final Socket c = server.accept();
-                                      pool.execute(new Runnable() { public void run() { handle(c); } });
-                                  } catch (Throwable t) { if (!running) break; }
-                              }
-                          }
-                      }, "lansync-accept").start();
+                      getContext().getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE).edit().putBoolean("on", true).apply();
+                      Intent i = new Intent(getContext(), LanSyncService.class);
+                      if (Build.VERSION.SDK_INT >= 26) getContext().startForegroundService(i);
+                      else getContext().startService(i);
                       JSObject r = new JSObject(); r.put("ip", localIp());
                       call.resolve(r);
                   } catch (Throwable t) { call.reject("start failed: " + t.getMessage()); }
@@ -409,29 +597,75 @@ jobs:
 
               @PluginMethod
               public void stop(PluginCall call) {
-                  running = false;
-                  try { if (server != null) server.close(); } catch (Throwable t) { }
-                  server = null;
+                  try { getContext().getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE).edit().putBoolean("on", false).apply(); } catch (Throwable t) { }
+                  try { getContext().stopService(new Intent(getContext(), LanSyncService.class)); } catch (Throwable t) { }
                   call.resolve();
               }
 
-              private void handle(Socket c) {
+              /** كيرجع الرسائل اللي توصلات والتطبيق مقفول/فالخلفية، وكيمسحها من الطابور. */
+              @PluginMethod
+              public void drain(final PluginCall call) {
+                  pool.execute(new Runnable() {
+                      public void run() {
+                          try {
+                              JSArray items = new JSArray();
+                              File[] fs = LanSyncService.queueDir(getContext()).listFiles();
+                              boolean more = false;
+                              if (fs != null) {
+                                  Arrays.sort(fs);
+                                  int cnt = 0;
+                                  for (File f : fs) {
+                                      if (!f.getName().endsWith(".msg")) continue;
+                                      if (cnt >= 10) { more = true; break; }
+                                      try {
+                                          InputStream is = new FileInputStream(f);
+                                          ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                                          byte[] buf = new byte[65536]; int n;
+                                          while ((n = is.read(buf)) != -1) bos.write(buf, 0, n);
+                                          is.close();
+                                          String all = new String(bos.toByteArray(), "UTF-8");
+                                          int nl = all.indexOf('\n');
+                                          JSObject it = new JSObject();
+                                          it.put("from", nl > 0 ? all.substring(0, nl) : "");
+                                          it.put("data", nl >= 0 ? all.substring(nl + 1) : all);
+                                          items.put(it);
+                                          f.delete();
+                                          cnt++;
+                                      } catch (Throwable t) { f.delete(); }
+                                  }
+                              }
+                              JSObject res = new JSObject();
+                              res.put("items", items);
+                              res.put("more", more);
+                              call.resolve(res);
+                          } catch (Throwable t) { call.reject("drain failed: " + t.getMessage()); }
+                      }
+                  });
+              }
+
+              @PluginMethod
+              public void isIgnoringBattery(PluginCall call) {
+                  JSObject r = new JSObject();
+                  boolean ok = true;
                   try {
-                      c.setSoTimeout(30000);
-                      BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"), 65536);
-                      String line = r.readLine();
-                      OutputStream o = c.getOutputStream();
-                      if ("LANSYNC_PING".equals(line)) {
-                          o.write("LANSYNC_PONG\n".getBytes("UTF-8")); o.flush();
-                      } else if (line != null && line.startsWith("LANSYNC_MSG ")) {
-                          o.write("OK\n".getBytes("UTF-8")); o.flush();
-                          JSObject ev = new JSObject();
-                          ev.put("data", line.substring(12));
-                          ev.put("from", c.getInetAddress().getHostAddress());
-                          notifyListeners("message", ev);
+                      if (Build.VERSION.SDK_INT >= 23) {
+                          PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+                          ok = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
                       }
                   } catch (Throwable t) { }
-                  finally { try { c.close(); } catch (Throwable t) { } }
+                  r.put("ignoring", ok);
+                  call.resolve(r);
+              }
+
+              @PluginMethod
+              public void requestIgnoreBattery(PluginCall call) {
+                  try {
+                      Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                      i.setData(Uri.parse("package:" + getContext().getPackageName()));
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      getContext().startActivity(i);
+                  } catch (Throwable t) { }
+                  call.resolve();
               }
 
               @PluginMethod
@@ -527,6 +761,17 @@ jobs:
             }
           }
           EOF
+      - name: Add LanSync foreground service + permissions (auto phone-to-phone sync, works with screen locked)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          for P in FOREGROUND_SERVICE FOREGROUND_SERVICE_SPECIAL_USE RECEIVE_BOOT_COMPLETED WAKE_LOCK REQUEST_IGNORE_BATTERY_OPTIMIZATIONS CHANGE_WIFI_STATE ACCESS_WIFI_STATE; do
+            grep -q "android.permission.$P\"" "$MANIFEST" || \
+            sed -i "/<manifest /a\\    <uses-permission android:name=\"android.permission.$P\" />" "$MANIFEST"
+          done
+          grep -q 'LanSyncService' "$MANIFEST" || \
+          sed -i '/<\/application>/i\        <service android:name="com.achfrirachid.tatabbou.LanSyncService" android:exported="false" android:foregroundServiceType="specialUse">\n            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="local_wifi_sync" />\n        </service>\n        <receiver android:name="com.achfrirachid.tatabbou.LanSyncBootReceiver" android:exported="true">\n            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>\n        </receiver>' "$MANIFEST"
+          grep -n -E 'LanSyncService|FOREGROUND_SERVICE|WAKE_LOCK' "$MANIFEST"
+
       - name: Ensure internet permissions are declared
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
