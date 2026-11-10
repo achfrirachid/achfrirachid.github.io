@@ -306,6 +306,200 @@ jobs:
               }
           }
           EOF
+          # 🔗 مزامنة محلية بين الهاتفين عبر الروتر (LanSync)
+          cat > android/app/src/main/java/com/achfrirachid/tatabbou/LanSyncPlugin.java << 'EOF'
+          package com.achfrirachid.tatabbou;
+
+          import android.content.Context;
+          import android.net.ConnectivityManager;
+          import android.net.Network;
+          import android.net.NetworkCapabilities;
+
+          import com.getcapacitor.JSArray;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.io.OutputStream;
+          import java.net.Inet4Address;
+          import java.net.InetAddress;
+          import java.net.InetSocketAddress;
+          import java.net.NetworkInterface;
+          import java.net.ServerSocket;
+          import java.net.Socket;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.List;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.Future;
+          import java.util.concurrent.TimeUnit;
+
+          /** مزامنة محلية بين هاتفين عبر نفس الروتر (بلا إنترنت). النص كيجي مشفر من JS، هنا غير نقل. */
+          @CapacitorPlugin(name = "LanSync")
+          public class LanSyncPlugin extends Plugin {
+              static final int PORT = 8765;
+              private ServerSocket server;
+              private volatile boolean running = false;
+              private final ExecutorService pool = Executors.newFixedThreadPool(8);
+              private final ExecutorService scanPool = Executors.newFixedThreadPool(48);
+
+              private Network wifiNet() {
+                  try {
+                      ConnectivityManager cm = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+                      for (Network n : cm.getAllNetworks()) {
+                          NetworkCapabilities c = cm.getNetworkCapabilities(n);
+                          if (c != null && c.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return n;
+                      }
+                  } catch (Throwable t) { }
+                  return null;
+              }
+
+              // مهم: الروتر بلا إنترنت → أندرويد يمكن يدوز بالداتا؛ كنربطو السوكيت بـ Wi-Fi مباشرة
+              private Socket newSocket() throws Exception {
+                  Socket s = new Socket();
+                  Network n = wifiNet();
+                  if (n != null) { try { n.bindSocket(s); } catch (Throwable t) { } }
+                  return s;
+              }
+
+              private String localIp() {
+                  try {
+                      String best = null;
+                      for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                          if (!ni.isUp() || ni.isLoopback()) continue;
+                          for (InetAddress a : Collections.list(ni.getInetAddresses())) {
+                              if (a instanceof Inet4Address && a.isSiteLocalAddress()) {
+                                  String nm = ni.getName();
+                                  if (nm.startsWith("wlan") || nm.startsWith("ap") || nm.startsWith("swlan")) return a.getHostAddress();
+                                  if (best == null) best = a.getHostAddress();
+                              }
+                          }
+                      }
+                      return best;
+                  } catch (Throwable t) { return null; }
+              }
+
+              @PluginMethod
+              public void start(final PluginCall call) {
+                  if (running) { JSObject r = new JSObject(); r.put("ip", localIp()); call.resolve(r); return; }
+                  try {
+                      server = new ServerSocket();
+                      server.setReuseAddress(true);
+                      server.bind(new InetSocketAddress(PORT));
+                      running = true;
+                      new Thread(new Runnable() {
+                          public void run() {
+                              while (running) {
+                                  try {
+                                      final Socket c = server.accept();
+                                      pool.execute(new Runnable() { public void run() { handle(c); } });
+                                  } catch (Throwable t) { if (!running) break; }
+                              }
+                          }
+                      }, "lansync-accept").start();
+                      JSObject r = new JSObject(); r.put("ip", localIp());
+                      call.resolve(r);
+                  } catch (Throwable t) { call.reject("start failed: " + t.getMessage()); }
+              }
+
+              @PluginMethod
+              public void stop(PluginCall call) {
+                  running = false;
+                  try { if (server != null) server.close(); } catch (Throwable t) { }
+                  server = null;
+                  call.resolve();
+              }
+
+              private void handle(Socket c) {
+                  try {
+                      c.setSoTimeout(30000);
+                      BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), "UTF-8"), 65536);
+                      String line = r.readLine();
+                      OutputStream o = c.getOutputStream();
+                      if ("LANSYNC_PING".equals(line)) {
+                          o.write("LANSYNC_PONG\n".getBytes("UTF-8")); o.flush();
+                      } else if (line != null && line.startsWith("LANSYNC_MSG ")) {
+                          o.write("OK\n".getBytes("UTF-8")); o.flush();
+                          JSObject ev = new JSObject();
+                          ev.put("data", line.substring(12));
+                          ev.put("from", c.getInetAddress().getHostAddress());
+                          notifyListeners("message", ev);
+                      }
+                  } catch (Throwable t) { }
+                  finally { try { c.close(); } catch (Throwable t) { } }
+              }
+
+              @PluginMethod
+              public void send(final PluginCall call) {
+                  final String host = call.getString("host");
+                  final String data = call.getString("data");
+                  if (host == null || data == null) { call.reject("bad args"); return; }
+                  pool.execute(new Runnable() {
+                      public void run() {
+                          Socket s = null;
+                          try {
+                              s = newSocket();
+                              s.connect(new InetSocketAddress(host, PORT), 2500);
+                              s.setSoTimeout(30000);
+                              OutputStream o = s.getOutputStream();
+                              o.write(("LANSYNC_MSG " + data + "\n").getBytes("UTF-8")); o.flush();
+                              BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+                              String ans = r.readLine();
+                              JSObject res = new JSObject(); res.put("ok", "OK".equals(ans));
+                              call.resolve(res);
+                          } catch (Throwable t) { call.reject("send failed: " + t.getMessage()); }
+                          finally { try { if (s != null) s.close(); } catch (Throwable t) { } }
+                      }
+                  });
+              }
+
+              private boolean ping(String host) {
+                  Socket s = null;
+                  try {
+                      s = newSocket();
+                      s.connect(new InetSocketAddress(host, PORT), 450);
+                      s.setSoTimeout(1200);
+                      s.getOutputStream().write("LANSYNC_PING\n".getBytes("UTF-8")); s.getOutputStream().flush();
+                      BufferedReader r = new BufferedReader(new InputStreamReader(s.getInputStream(), "UTF-8"));
+                      return "LANSYNC_PONG".equals(r.readLine());
+                  } catch (Throwable t) { return false; }
+                  finally { try { if (s != null) s.close(); } catch (Throwable t) { } }
+              }
+
+              @PluginMethod
+              public void scan(final PluginCall call) {
+                  new Thread(new Runnable() {
+                      public void run() {
+                          JSObject res = new JSObject();
+                          JSArray peers = new JSArray();
+                          String self = localIp();
+                          res.put("ip", self);
+                          if (self != null) {
+                              String base = self.substring(0, self.lastIndexOf('.') + 1);
+                              List<Future<String>> fs = new ArrayList<Future<String>>();
+                              for (int i = 1; i <= 254; i++) {
+                                  final String h = base + i;
+                                  if (h.equals(self)) continue;
+                                  fs.add(scanPool.submit(new java.util.concurrent.Callable<String>() {
+                                      public String call() { return ping(h) ? h : null; }
+                                  }));
+                              }
+                              for (Future<String> f : fs) {
+                                  try { String h = f.get(10, TimeUnit.SECONDS); if (h != null) peers.put(h); } catch (Throwable t) { }
+                              }
+                          }
+                          res.put("peers", peers);
+                          call.resolve(res);
+                      }
+                  }, "lansync-scan").start();
+              }
+          }
+          EOF
           cat > android/app/src/main/java/com/achfrirachid/tatabbou/MainActivity.java << 'EOF'
           package com.achfrirachid.tatabbou;
           import android.Manifest;
@@ -320,6 +514,7 @@ jobs:
               registerPlugin(WhatsAppSharePlugin.class);
               registerPlugin(NotificationPermissionPlugin.class);
               registerPlugin(SafFolderPlugin.class);
+              registerPlugin(LanSyncPlugin.class);
               super.onCreate(savedInstanceState);
               requestNotificationPermissionIfNeeded();
             }
@@ -337,6 +532,11 @@ jobs:
           MANIFEST=android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' "$MANIFEST" || \
           sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
+      - name: Ensure network-state permission (needed by LanSync to bind to Wi-Fi)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.ACCESS_NETWORK_STATE' "$MANIFEST" || \
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />' "$MANIFEST"
       - name: Declare package visibility for WhatsApp (Android 11+ requirement)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
