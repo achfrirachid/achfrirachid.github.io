@@ -8822,7 +8822,7 @@ function autoBackupIfNeeded(){
 }
   const PENDING_SYNC_KEY = 'pendingSyncSinceOffline';
   const REPORT_DELIVERY_PENDING_KEY = 'reportDeliveryPendingV2';
-  const SYNC_DEBOUNCE_DELAY_MS = 5 * 1000;
+  const SYNC_DEBOUNCE_DELAY_MS = 2 * 1000; // ⭐ كانت 5 ثواني — خففناها باش السحابة تبدا أسرع بعد الحفظ
 
   // ⭐ 2026-09-13 (إضافة — تذكير مزامنة native حتى والتطبيق مقفول): بما أن
   // المزامنة الصامتة الكاملة فالخلفية (Headless WebView) ما بانتش موثوقة بزاف
@@ -17469,10 +17469,11 @@ try{
 if(!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform() && Capacitor.isPluginAvailable && Capacitor.isPluginAvailable('LanSync'))) return;
 var P = Capacitor.registerPlugin ? Capacitor.registerPlugin('LanSync') : Capacitor.Plugins.LanSync;
 var K_CODE='lanSyncCodeV1', K_ON='lanSyncOnV1', K_DEV='lanSyncDevV1';
+function curCode(){ return normCode(localStorage.getItem(K_CODE)); }
 var dev = localStorage.getItem(K_DEV); if(!dev){ dev = 'd'+Math.random().toString(36).slice(2,10); localStorage.setItem(K_DEV, dev); }
 function prof(){ try{ return String(currentProfileStorageKey(STORAGE_KEY)); }catch(e){ return 'main'; } }
 function kFp(){ return 'lanSyncFpV1:'+prof(); }
-var FP={}, TS={}, PEND={}, peers=[], myIp=null, running=false, busy=false, lastDel=-1, status='متوقف', timer=null, soonT=null;
+var FP={}, TS={}, PEND={}, peers=[], myIp=null, running=false, busy=false, again=false, lastDel=-1, status='متوقف', timer=null, soonT=null;
 function loadMaps(){ try{ var o=JSON.parse(localStorage.getItem(kFp())||'null'); if(o){ FP=o.fp||{}; TS=o.ts||{}; PEND=o.pend||{}; } else { FP={}; TS={}; PEND={}; } }catch(e){ FP={};TS={};PEND={}; } }
 function saveMaps(){ try{ localStorage.setItem(kFp(), JSON.stringify({fp:FP,ts:TS,pend:PEND})); }catch(e){} }
 function hash(str){ var h=5381; for(var i=0;i<str.length;i++){ h=((h<<5)+h+str.charCodeAt(i))|0; } return (h>>>0).toString(36)+':'+str.length; }
@@ -17490,7 +17491,7 @@ function scanLocal(){
 }
 /* التشفير: AES-GCM بمفتاح من الكود */
 var enc=new TextEncoder(), dec=new TextDecoder(), keyP=null, keyFor=null;
-function getKey(){ var code=localStorage.getItem(K_CODE)||''; if(keyP && keyFor===code) return keyP; keyFor=code;
+function getKey(){ var code=curCode(); if(keyP && keyFor===code) return keyP; keyFor=code;
   keyP=crypto.subtle.importKey('raw',enc.encode(code),'PBKDF2',false,['deriveKey']).then(function(k){ return crypto.subtle.deriveKey({name:'PBKDF2',salt:enc.encode('lansync-v1'),iterations:60000,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['encrypt','decrypt']); }); return keyP; }
 function b64(buf){ var u=new Uint8Array(buf),s='',n=0x8000; for(var i=0;i<u.length;i+=n) s+=String.fromCharCode.apply(null,u.subarray(i,i+n)); return btoa(s); }
 function unb64(t){ var s=atob(t),u=new Uint8Array(s.length); for(var i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
@@ -17501,7 +17502,7 @@ async function sendTo(host,obj){ try{ var r=await P.send({host:host,data:await s
 async function sendAll(obj){ var ok=false; for(var i=peers.length-1;i>=0;i--){ var r=await sendTo(peers[i],obj); if(r) ok=true; else peers.splice(i,1); } return ok; }
 function mkBatches(ids){ var out=[],cur=[],size=0; ids.forEach(function(id){ var s=(students||[]).find(function(x){return x&&x.id===id;}); if(!s) return; var rec={s:s,ts:TS[id]||0}; var sz=JSON.stringify(rec).length; if(cur.length && size+sz>1200000){ out.push(cur); cur=[]; size=0; } cur.push(rec); size+=sz; }); if(cur.length) out.push(cur); return out; }
 async function pushNow(extraIds){
-  if(busy) return; busy=true;
+  if(busy){ again=true; return; } busy=true;
   try{
     scanLocal();
     if(!peers.length){ await discover(false); }
@@ -17518,7 +17519,7 @@ async function pushNow(extraIds){
     if(allOk){ list.forEach(function(k){ delete PEND[k]; }); lastDel=del.length; saveMaps(); status='✅ متزامن مع '+peers.length+' هاتف'; }
     else status='⚠️ ما تصيفطاتش — غادي نعاودو';
     refreshUi();
-  }catch(e){} finally{ busy=false; }
+  }catch(e){} finally{ busy=false; if(again){ again=false; setTimeout(function(){ pushNow(); },300); } }
 }
 async function discover(sayHello){
   try{
@@ -17571,18 +17572,22 @@ function applyRecs(o){
   if(changed){ saveMaps(); try{ save(); }catch(e){} if(added||upd){ try{ toast('🔗 وصلات تعديلات من الهاتف الآخر ('+(added+upd)+')'); }catch(e){} } status='✅ تحدّث من الهاتف الآخر'; refreshUi(); }
 }
 /* التشغيل */
-function soon(){ if(!running) return; clearTimeout(soonT); soonT=setTimeout(function(){ pushNow(); },2500); }
+function soon(){ if(!running) return; clearTimeout(soonT); soonT=setTimeout(function(){ pushNow(); },600); }
 async function startSync(){
-  if(!(localStorage.getItem(K_CODE)||'').trim()){ status='⚠️ دخل كود المزامنة أولا'; refreshUi(); return; }
-  try{ loadMaps(); var r=await P.start(); myIp=r.ip||null; running=true; localStorage.setItem(K_ON,'1'); scanLocal(); status='🔍 كنقلب على الهاتف الآخر...'; refreshUi(); await discover(true); clearInterval(timer); timer=setInterval(function(){ if(!running) return; if(!peers.length) discover(true); else pushNow(); },45000); }
+  if(!curCode()){ status='⚠️ دخل كود المزامنة أولا (نفس الكود فالهاتفين)'; refreshUi(); return; }
+  try{ loadMaps(); var r=await P.start(); myIp=r.ip||null; running=true; localStorage.setItem(K_ON,'1'); scanLocal(); status='🔍 كنقلب على الهاتف الآخر...'; refreshUi(); await drain(); await discover(true); askBattery(); clearInterval(timer); timer=setInterval(function(){ if(!running) return; drain(); if(!peers.length) discover(true); else pushNow(); },20000); }
   catch(e){ status='⚠️ ما قدرتش نشغل السيرفر المحلي'; refreshUi(); }
 }
 async function stopSync(){ running=false; localStorage.setItem(K_ON,'0'); clearInterval(timer); try{ await P.stop(); }catch(e){} peers=[]; status='متوقف'; refreshUi(); }
+var draining=false;
+async function drain(){ if(draining||!running) return; draining=true; try{ for(var g=0;g<200;g++){ var r=await P.drain(); var it=(r&&r.items)||[]; for(var i=0;i<it.length;i++){ await onMsg({data:it[i].data,from:it[i].from}); } if(!r||!r.more) break; } }catch(e){} finally{ draining=false; } }
+async function askBattery(){ try{ if(localStorage.getItem('lanSyncBattAskV1')) return; var r=await P.isIgnoringBattery(); if(r&&!r.ignoring){ localStorage.setItem('lanSyncBattAskV1','1'); await P.requestIgnoreBattery(); } }catch(e){} }
+try{ P.addListener('pending', function(){ drain(); }); }catch(e){}
 try{ P.addListener('message', onMsg); }catch(e){}
 var _save=window.save;
 if(typeof _save==='function'){ window.save=function(){ var r=_save.apply(this,arguments); try{ soon(); }catch(e){} return r; }; }
 window.addEventListener('online',function(){ if(running) setTimeout(function(){ discover(true); },1500); });
-document.addEventListener('visibilitychange',function(){ if(running && document.visibilityState==='visible') setTimeout(function(){ if(!peers.length) discover(true); else pushNow(); },1200); });
+document.addEventListener('visibilitychange',function(){ if(running && document.visibilityState==='visible') setTimeout(function(){ drain(); if(!peers.length) discover(true); else pushNow(); },1200); });
 /* الواجهة: زر داخل لوحة الإدارة + نافذة (ماكاين حتى زر عائم فالواجهة الرئيسية) */
 var AL='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function genCode(){ var u=crypto.getRandomValues(new Uint8Array(8)),c=''; for(var i=0;i<8;i++) c+=AL[u[i]%AL.length]; return c; }
@@ -17594,7 +17599,7 @@ box.style.cssText='display:none;position:fixed;left:12px;right:12px;top:50%;tran
 box.innerHTML='<div style="font-weight:bold;margin-bottom:6px">🔗 مزامنة بين الهاتفين (نفس الروتر)</div>'
 +'<div style="font-size:12px;color:#555;margin-bottom:8px">كتخدم بلا إنترنت (غير نفس Wi-Fi)، وكتخدم حتى مع الإنترنت. السحابات والحفظ فالهاتف والـ Download كيبقاو خدامين بحالهم.</div>'
 +'<div id="lanSt" style="margin-bottom:8px;font-weight:bold"></div>'
-+'<div style="font-size:12px;color:#555">كود المزامنة (ولّدو فهاتف، ودخلو بنفسو فالهاتف الآخر):</div>'
++'<div style="font-size:12px;color:#555">كود المزامنة (ولّدو فالهاتف الأساسي، ودخلو بنفسو فالهاتف الثانوي والثالث):</div>'
 +'<input id="lanCode" type="text" autocapitalize="characters" style="width:100%;box-sizing:border-box;padding:10px;border:1.5px solid #0f766e;border-radius:8px;margin:4px 0 8px;font-size:22px;letter-spacing:3px;text-align:center;direction:ltr;font-family:monospace">'
 +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><button id="lanGen" style="flex:1;padding:9px;border:0;border-radius:8px;background:#f59e0b;color:#fff">🎲 كود جديد</button><button id="lanCopy" style="flex:1;padding:9px;border:0;border-radius:8px;background:#64748b;color:#fff">📋 نسخ</button></div>'
 +'<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="lanTog" style="flex:1;padding:9px;border:0;border-radius:8px;background:#0f766e;color:#fff"></button>'
@@ -17602,26 +17607,26 @@ box.innerHTML='<div style="font-weight:bold;margin-bottom:6px">🔗 مزامنة
 +'<button id="lanFind" style="flex:1;padding:9px;border:0;border-radius:8px;background:#7c3aed;color:#fff">🔍 قلب</button></div>'
 +'<div id="lanInfo" style="margin-top:8px;font-size:12px;color:#555"></div>'
 +'<div style="margin-top:6px;text-align:left"><button id="lanClose" style="padding:6px 14px;border:0;border-radius:8px;background:#e5e7eb">سد</button></div>';
-function refreshUi(){ var a=document.getElementById('lanSt'); if(a){ a.textContent=status; document.getElementById('lanTog').textContent=running?'⏹ إيقاف':'▶️ تشغيل'; document.getElementById('lanInfo').textContent=(myIp?('IP ديالي: '+myIp+' — '):'')+'الهواتف: '+(peers.length?peers.join(', '):'ما كاين حتى واحد')+' — خاص التطبيق يكون مفتوح فالهاتفين'; }
+function refreshUi(){ var a=document.getElementById('lanSt'); if(a){ a.textContent=status; document.getElementById('lanTog').textContent=running?'⏹ إيقاف':'▶️ تشغيل'; document.getElementById('lanInfo').textContent=(myIp?('IP ديالي: '+myIp+' — '):'')+'الهواتف: '+(peers.length?peers.join(', '):'ما كاين حتى واحد')+' — خدامة حتى والهاتف مقفول أو معاد تشغيلو (إشعار دائم)'; }
   if(admBtn) admBtn.textContent='🔗 مزامنة الهاتفين'+(running?(peers.length?' ✅':' ⏳'):''); }
 function setCode(c){ c=normCode(c); localStorage.setItem(K_CODE,c); keyP=null; var i=document.getElementById('lanCode'); if(i) i.value=fmtCode(c); return c; }
 function mount(){
   document.body.appendChild(box);
-  var inp=document.getElementById('lanCode'); inp.value=fmtCode(normCode(localStorage.getItem(K_CODE)));
+  var inp=document.getElementById('lanCode'); inp.value=fmtCode(curCode()); inp.placeholder='XXXX-XXXX';
   inp.addEventListener('change',function(){ setCode(inp.value); });
   document.getElementById('lanClose').onclick=function(){ box.style.display='none'; };
   document.getElementById('lanGen').onclick=function(){ if(running) stopSync(); setCode(genCode()); status='كود جديد — دخلو فالهاتف الآخر وشغل ▶️ فالهاتفين'; refreshUi(); };
-  document.getElementById('lanCopy').onclick=function(){ var c=fmtCode(normCode(localStorage.getItem(K_CODE))); try{ navigator.clipboard.writeText(c); status='📋 تنسخ الكود'; }catch(e){ status='الكود: '+c; } refreshUi(); };
+  document.getElementById('lanCopy').onclick=function(){ var c=fmtCode(curCode()); try{ navigator.clipboard.writeText(c); status='📋 تنسخ الكود'; }catch(e){ status='الكود: '+c; } refreshUi(); };
   document.getElementById('lanTog').onclick=function(){ setCode(inp.value); if(running) stopSync(); else startSync(); };
   document.getElementById('lanFind').onclick=function(){ if(!running){ status='شغل المزامنة أولا'; refreshUi(); return; } discover(true); };
   document.getElementById('lanFull').onclick=function(){ if(!running){ status='شغل المزامنة أولا'; refreshUi(); return; } FP={}; TS={}; if(peers.length){ sendAll({t:'hello',p:prof(),from:dev,have:[],del:delIds()}).then(function(){ status='🔄 تصيفطات مزامنة كاملة'; refreshUi(); }); } else discover(true); };
   /* الزر داخل لوحة الإدارة */
   var ref=document.getElementById('appAutoLockBtn'), host=ref&&ref.parentElement;
   if(host){ admBtn=document.createElement('button'); admBtn.className='btn-secondary'; admBtn.style.cssText='width:100%;background:linear-gradient(135deg,#f0fdfa,#fff);border:1.5px solid #0f766e;color:#0f766e;';
-    admBtn.onclick=function(){ try{ closeOverlay('adminPanelOverlay'); }catch(e){} if(!normCode(localStorage.getItem(K_CODE))) setCode(genCode()); box.style.display='block'; refreshUi(); };
+    admBtn.onclick=function(){ try{ closeOverlay('adminPanelOverlay'); }catch(e){} if(!curCode()) setCode(genCode()); box.style.display='block'; refreshUi(); };
     host.insertBefore(admBtn,ref); }
   refreshUi();
-  if(localStorage.getItem(K_ON)==='1') setTimeout(startSync,7000);
+  if(localStorage.getItem(K_ON)==='1') setTimeout(startSync,3000);
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',mount); else mount();
 }catch(e){ console.warn('lansync init error',e); }
