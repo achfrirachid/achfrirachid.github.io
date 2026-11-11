@@ -491,7 +491,7 @@ jobs:
               @Override
               public void onReceive(Context ctx, Intent intent) {
                   try {
-                      if (!ctx.getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE).getBoolean("on", false)) return;
+                      if (!ctx.getSharedPreferences("lansync_prefs", Context.MODE_PRIVATE).getBoolean("on", true)) return;
                       Intent i = new Intent(ctx, LanSyncService.class);
                       if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i); else ctx.startService(i);
                   } catch (Throwable t) { }
@@ -789,7 +789,7 @@ jobs:
             sed -i "/<manifest /a\\    <uses-permission android:name=\"android.permission.$P\" />" "$MANIFEST"
           done
           grep -q 'LanSyncService' "$MANIFEST" || \
-          sed -i '/<\/application>/i\        <service android:name="com.achfrirachid.tatabbou.LanSyncService" android:exported="false" android:foregroundServiceType="specialUse">\n            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="local_wifi_sync" />\n        </service>\n        <receiver android:name="com.achfrirachid.tatabbou.LanSyncBootReceiver" android:exported="true">\n            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>\n        </receiver>' "$MANIFEST"
+          sed -i '/<\/application>/i\        <service android:name="com.achfrirachid.tatabbou.LanSyncService" android:exported="false" android:foregroundServiceType="specialUse">\n            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="local_wifi_sync" />\n        </service>\n        <receiver android:name="com.achfrirachid.tatabbou.LanSyncBootReceiver" android:exported="true">\n            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.QUICKBOOT_POWERON" /><action android:name="com.htc.intent.action.QUICKBOOT_POWERON" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter>\n        </receiver>' "$MANIFEST"
           grep -n -E 'LanSyncService|FOREGROUND_SERVICE|WAKE_LOCK' "$MANIFEST"
 
       - name: Ensure internet permissions are declared
