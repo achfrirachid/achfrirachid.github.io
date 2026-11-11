@@ -8615,6 +8615,19 @@ async function openReceiptCard(id){
   // الكود — إلا كانت البصمة نفسها كنستعملو الصورة المخزنة فورا بلا أي بناء
   const fp = receiptCardFingerprint(s);
   const cachedEntryPromise = mcacheGet(s.id, 'receipt');
+  // ⭐ تسريع: إلا ما كانتش الصورة فالكاش، كنبداو نبنيوها فالخلفية فنفس لحظة الضغط
+  // (وقت ما المستخدم كيكتب الكود) — هكذا من بعد الكود كتكون واجدة تقريبا فورا.
+  const specBuild = (async()=>{
+    try{
+      const c0 = await cachedEntryPromise;
+      if(c0 && c0.fingerprint === fp && c0.blob) return null;
+      const cv = await buildReceiptCanvas(s).catch(e=>{ console.error('buildReceiptCanvas error', e); return null; });
+      if(!cv) return null;
+      const b0 = await blobFromCanvas(cv);
+      if(b0) mcacheSet(s.id, 'receipt', fp, b0, `وصل-${s.name}.jpg`);
+      return b0;
+    }catch(e){ return null; }
+  })();
   const code = await askCodeAsync('🔒 باش تفتح الوصل، دخل الكود السري:');
   if(code === null) return;
   if(!isValidCode(code)){ toast('⚠️ الكود غالط'); return; }
@@ -8623,14 +8636,12 @@ async function openReceiptCard(id){
   const cached = await cachedEntryPromise;
   let finalBlob = (cached && cached.fingerprint === fp && cached.blob) ? cached.blob : null;
   if(!finalBlob){
-    const canvas = await withHardTimeout(buildReceiptCanvas(s).catch(e=>{ console.error('buildReceiptCanvas error', e); return null; }), 7000);
-    if(!canvas){
+    finalBlob = await withHardTimeout(specBuild, 7000);
+    if(!finalBlob){
       closeReceiptCard();
       toast('⚠️ تعطلات البطاقة، عاود المحاولة');
       return;
     }
-    finalBlob = await blobFromCanvas(canvas);
-    if(finalBlob) mcacheSet(s.id, 'receipt', fp, finalBlob, `وصل-${s.name}.jpg`);
   }
   if(!finalBlob){ closeReceiptCard(); toast('⚠️ ماقدرش يتصاوب البطاقة'); return; }
   _cardBusyUntil = 0;
@@ -17479,17 +17490,17 @@ function saveMaps(){ try{ localStorage.setItem(kFp(), JSON.stringify({fp:FP,ts:T
 function stamp(){ try{ localStorage.setItem('lanSyncLastV1',String(Date.now())); }catch(e){} }
 function lastTxt(){ try{ var t=+localStorage.getItem('lanSyncLastV1'); if(!t) return 'مازال'; var d=new Date(t); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
 function hash(str){ var h=5381; for(var i=0;i<str.length;i++){ h=((h<<5)+h+str.charCodeAt(i))|0; } return (h>>>0).toString(36)+':'+str.length; }
-function fpOf(s){ var ph = s.photo ? String(s.photo.length) : '0'; return hash(JSON.stringify(s,function(k,v){ return k==='photo'?undefined:v; })+'|'+ph); }
+function fpOf(s){ var ph = s.photo ? String(s.photo.length) : '0'; var c=Object.assign({},s); delete c.photo; return hash(JSON.stringify(c)+'|'+ph); }
 function setBase(s,ts){ FP[s.id]=fpOf(s); TS[s.id]=ts||0; delete PEND[s.id]; }
 /* كنقارنو الطلبة مع آخر بصمة: التغييرات الجديدة كتتسجل بوقتها، وأول تشغيل كيبدأ بوقت 0 (بلا ما يغلب على الهاتف الآخر) */
 function scanLocal(){
-  var first = Object.keys(FP).length===0, now=Date.now(), seen={};
+  var first = Object.keys(FP).length===0, now=Date.now(), seen={}, dirty=first;
   (students||[]).forEach(function(s){
     if(!s||!s.id) return; seen[s.id]=1; var f=fpOf(s);
-    if(FP[s.id]!==f){ FP[s.id]=f; if(first){ TS[s.id]=0; } else { TS[s.id]=now; PEND[s.id]=1; } }
+    if(FP[s.id]!==f){ dirty=true; FP[s.id]=f; if(first){ TS[s.id]=0; } else { TS[s.id]=now; PEND[s.id]=1; } }
   });
-  Object.keys(FP).forEach(function(k){ if(!seen[k]){ delete FP[k]; delete TS[k]; delete PEND[k]; } });
-  saveMaps();
+  Object.keys(FP).forEach(function(k){ if(!seen[k]){ dirty=true; delete FP[k]; delete TS[k]; delete PEND[k]; } });
+  if(dirty) saveMaps();
 }
 /* التشفير: AES-GCM بمفتاح من الكود */
 var enc=new TextEncoder(), dec=new TextDecoder(), keyP=null, keyFor=null;
@@ -17504,6 +17515,7 @@ async function sendTo(host,obj){ try{ var r=await P.send({host:host,data:(obj.n?
 async function sendAll(obj){ var ok=false; for(var i=peers.length-1;i>=0;i--){ var r=await sendTo(peers[i],obj); if(r) ok=true; else peers.splice(i,1); } return ok; }
 function mkBatches(ids){ var out=[],cur=[],size=0; ids.forEach(function(id){ var s=(students||[]).find(function(x){return x&&x.id===id;}); if(!s) return; var rec={s:s,ts:TS[id]||0}; var sz=JSON.stringify(rec).length; if(cur.length && size+sz>1200000){ out.push(cur); cur=[]; size=0; } cur.push(rec); size+=sz; }); if(cur.length) out.push(cur); return out; }
 async function pushNow(extraIds){
+  try{ if(typeof _cardBusyUntil!=='undefined' && Date.now()<_cardBusyUntil){ clearTimeout(soonT); soonT=setTimeout(function(){ pushNow(extraIds); },1500); return; } }catch(e){}
   if(busy){ again=true; return; } busy=true;
   try{
     scanLocal();
@@ -17580,7 +17592,7 @@ async function startSync(){
   if(running||starting) return;
   if(!curCode()){ status='⚠️ دخل كود المزامنة أولا (نفس الكود فالهاتفين)'; refreshUi(); return; }
   starting=true; try{ loadMaps(); var r=await P.start(); myIp=r.ip||null; running=true; localStorage.setItem(K_ON,'1'); scanLocal(); status='🔍 كنقلب على الهاتف الآخر...'; refreshUi(); await drain(); await discover(true); askBattery(); clearInterval(timer); var tick=0; timer=setInterval(function(){ if(!running) return; tick++; drain(); if(!peers.length) discover(true); else if(tick%2===0) pushNow(); },10000); }
-  catch(e){ status='⚠️ ما قدرتش نشغل السيرفر المحلي'; refreshUi(); } finally{ starting=false; }
+  catch(e){ status='⚠️ ما قدرتش نشغل السيرفر المحلي — غادي نعاود'; refreshUi(); } finally{ starting=false; }
 }
 async function stopSync(){ running=false; localStorage.setItem(K_ON,'0'); clearInterval(timer); try{ await P.stop(); }catch(e){} peers=[]; status='متوقف'; refreshUi(); }
 var draining=false;
@@ -17592,6 +17604,23 @@ var _save=window.save;
 if(typeof _save==='function'){ window.save=function(){ var r=_save.apply(this,arguments); try{ soon(); }catch(e){} return r; }; }
 document.addEventListener('visibilitychange',function(){ if(!running && document.visibilityState==='visible' && localStorage.getItem(K_ON)!=='0' && curCode()) startSync(); });
 window.addEventListener('online',function(){ if(running) setTimeout(function(){ discover(true); },1500); });
+/* حارس التشغيل التلقائي: بعد إطفاء/تشغيل الهاتف الواي-فاي كيتأخر، فكنعاودو حتى يتشغل بوحدو */
+var _wdBusy=false;
+async function lanWatchdog(){
+  if(_wdBusy) return; _wdBusy=true;
+  try{
+    if(localStorage.getItem(K_ON)==='0' || !curCode()) return;
+    if(!running && !starting){ await startSync(); }
+    else if(running && !myIp){ /* السيرفر تشغل قبل ما يجي الواي-فاي: نعاودو نربطو */
+      var r0=null; try{ r0=await P.start(); }catch(e){}
+      if(r0&&r0.ip){ myIp=r0.ip; await discover(true); }
+    }
+  }catch(e){} finally{ _wdBusy=false; }
+}
+setInterval(lanWatchdog,8000);
+window.addEventListener('online',function(){ setTimeout(lanWatchdog,1200); });
+window.addEventListener('focus',function(){ setTimeout(lanWatchdog,500); });
+document.addEventListener('resume',function(){ setTimeout(lanWatchdog,500); });
 document.addEventListener('visibilitychange',function(){ if(running && document.visibilityState==='visible') setTimeout(function(){ drain(); if(!peers.length) discover(true); else pushNow(); },1200); });
 /* الواجهة: زر داخل لوحة الإدارة + نافذة (ماكاين حتى زر عائم فالواجهة الرئيسية) */
 var AL='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
