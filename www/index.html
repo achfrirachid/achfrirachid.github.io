@@ -17473,9 +17473,11 @@ function curCode(){ return normCode(localStorage.getItem(K_CODE)); }
 var dev = localStorage.getItem(K_DEV); if(!dev){ dev = 'd'+Math.random().toString(36).slice(2,10); localStorage.setItem(K_DEV, dev); }
 function prof(){ try{ return String(currentProfileStorageKey(STORAGE_KEY)); }catch(e){ return 'main'; } }
 function kFp(){ return 'lanSyncFpV1:'+prof(); }
-var FP={}, TS={}, PEND={}, peers=[], myIp=null, running=false, busy=false, again=false, lastDel=-1, status='متوقف', timer=null, soonT=null;
-function loadMaps(){ try{ var o=JSON.parse(localStorage.getItem(kFp())||'null'); if(o){ FP=o.fp||{}; TS=o.ts||{}; PEND=o.pend||{}; } else { FP={}; TS={}; PEND={}; } }catch(e){ FP={};TS={};PEND={}; } }
-function saveMaps(){ try{ localStorage.setItem(kFp(), JSON.stringify({fp:FP,ts:TS,pend:PEND})); }catch(e){} }
+var FP={}, TS={}, PEND={}, PS={}, lastPushOk=false, starting=false, peers=[], myIp=null, running=false, busy=false, again=false, lastDel=-1, status='متوقف', timer=null, soonT=null;
+function loadMaps(){ try{ var o=JSON.parse(localStorage.getItem(kFp())||'null'); if(o){ FP=o.fp||{}; TS=o.ts||{}; PEND=o.pend||{}; PS=o.ps||{}; } else { FP={}; TS={}; PEND={}; PS={}; } }catch(e){ FP={};TS={};PEND={};PS={}; } }
+function saveMaps(){ try{ localStorage.setItem(kFp(), JSON.stringify({fp:FP,ts:TS,pend:PEND,ps:PS})); }catch(e){} }
+function stamp(){ try{ localStorage.setItem('lanSyncLastV1',String(Date.now())); }catch(e){} }
+function lastTxt(){ try{ var t=+localStorage.getItem('lanSyncLastV1'); if(!t) return 'مازال'; var d=new Date(t); return d.toLocaleDateString('fr-FR')+' '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }catch(e){ return '—'; } }
 function hash(str){ var h=5381; for(var i=0;i<str.length;i++){ h=((h<<5)+h+str.charCodeAt(i))|0; } return (h>>>0).toString(36)+':'+str.length; }
 function fpOf(s){ var ph = s.photo ? String(s.photo.length) : '0'; return hash(JSON.stringify(s,function(k,v){ return k==='photo'?undefined:v; })+'|'+ph); }
 function setBase(s,ts){ FP[s.id]=fpOf(s); TS[s.id]=ts||0; delete PEND[s.id]; }
@@ -17509,7 +17511,7 @@ async function pushNow(extraIds){
     if(!peers.length) return;
     var ids={}; Object.keys(PEND).forEach(function(k){ ids[k]=1; }); (extraIds||[]).forEach(function(k){ ids[k]=1; });
     var list=Object.keys(ids), del=delIds();
-    if(!list.length && del.length===lastDel) return;
+    if(!list.length && del.length===lastDel){ lastPushOk=true; return; }
     var chg=(list.length>0)||(lastDel>=0&&del.length!==lastDel);
     var batches=mkBatches(list), allOk=true;
     if(!batches.length) batches=[[]];
@@ -17517,7 +17519,7 @@ async function pushNow(extraIds){
       var ok=await sendAll({t:'recs',n:chg?1:0,p:prof(),from:dev,recs:batches[i],del:del});
       if(!ok){ allOk=false; break; }
     }
-    if(allOk){ list.forEach(function(k){ delete PEND[k]; }); lastDel=del.length; saveMaps(); status='✅ متزامن مع '+peers.length+' هاتف'; }
+    if(allOk){ lastPushOk=true; list.forEach(function(k){ delete PEND[k]; }); lastDel=del.length; saveMaps(); status='✅ متزامن مع '+peers.length+' هاتف'; if(chg) stamp(); }
     else status='⚠️ ما تصيفطاتش — غادي نعاودو';
     refreshUi();
   }catch(e){} finally{ busy=false; if(again){ again=false; setTimeout(function(){ pushNow(); },300); } }
@@ -17541,7 +17543,7 @@ async function onMsg(ev){
       var have={}; (o.have||[]).forEach(function(i){ have[i]=1; });
       var miss=(students||[]).filter(function(s){ return s&&s.id&&!have[s.id]; }).map(function(s){ return s.id; });
       if(!o.r){ await sendAll({t:'hello',r:1,p:prof(),from:dev,have:(students||[]).map(function(s){return s.id;}),del:delIds()}); }
-      scanLocal(); await pushNow(miss);
+      scanLocal(); var since=PS[o.from]||0, t0=Date.now(); Object.keys(TS).forEach(function(id){ if(TS[id]>since && TS[id]>0 && miss.indexOf(id)<0) miss.push(id); }); lastPushOk=false; await pushNow(miss); if(lastPushOk){ PS[o.from]=t0; saveMaps(); }
     } else if(o.t==='recs'){ applyRecs(o); }
   }catch(e){}
 }
@@ -17570,14 +17572,15 @@ function applyRecs(o){
     try{ var m=mergePaidPerMonth(ex,s); if(JSON.stringify(m.pm)!==JSON.stringify(ex.paidMonths)){ ex.paidMonths=m.pm; ex.paidDates=m.pd; } ex.paidTs=m.pt; ex.paidTouchedAt=m.t; }catch(e){}
     if(fpOf(ex)!==before){ changed++; upd++; setBase(ex, newer?its:(TS[s.id]||0)); }
   });
-  if(changed){ saveMaps(); try{ save(); }catch(e){} if(added||upd){ try{ toast('🔗 وصلات تعديلات من الهاتف الآخر ('+(added+upd)+')'); }catch(e){} } status='✅ تحدّث من الهاتف الآخر'; refreshUi(); }
+  if(changed){ saveMaps(); try{ save(); }catch(e){} if(added||upd){ try{ toast('🔗 وصلات تعديلات من الهاتف الآخر ('+(added+upd)+')'); }catch(e){} } status='✅ تحدّث من الهاتف الآخر'; stamp(); refreshUi(); }
 }
 /* التشغيل */
 function soon(){ if(!running) return; clearTimeout(soonT); soonT=setTimeout(function(){ pushNow(); },600); }
 async function startSync(){
+  if(running||starting) return;
   if(!curCode()){ status='⚠️ دخل كود المزامنة أولا (نفس الكود فالهاتفين)'; refreshUi(); return; }
-  try{ loadMaps(); var r=await P.start(); myIp=r.ip||null; running=true; localStorage.setItem(K_ON,'1'); scanLocal(); status='🔍 كنقلب على الهاتف الآخر...'; refreshUi(); await drain(); await discover(true); askBattery(); clearInterval(timer); timer=setInterval(function(){ if(!running) return; drain(); if(!peers.length) discover(true); else pushNow(); },20000); }
-  catch(e){ status='⚠️ ما قدرتش نشغل السيرفر المحلي'; refreshUi(); }
+  starting=true; try{ loadMaps(); var r=await P.start(); myIp=r.ip||null; running=true; localStorage.setItem(K_ON,'1'); scanLocal(); status='🔍 كنقلب على الهاتف الآخر...'; refreshUi(); await drain(); await discover(true); askBattery(); clearInterval(timer); var tick=0; timer=setInterval(function(){ if(!running) return; tick++; drain(); if(!peers.length) discover(true); else if(tick%2===0) pushNow(); },10000); }
+  catch(e){ status='⚠️ ما قدرتش نشغل السيرفر المحلي'; refreshUi(); } finally{ starting=false; }
 }
 async function stopSync(){ running=false; localStorage.setItem(K_ON,'0'); clearInterval(timer); try{ await P.stop(); }catch(e){} peers=[]; status='متوقف'; refreshUi(); }
 var draining=false;
@@ -17587,6 +17590,7 @@ try{ P.addListener('pending', function(){ drain(); }); }catch(e){}
 try{ P.addListener('message', onMsg); }catch(e){}
 var _save=window.save;
 if(typeof _save==='function'){ window.save=function(){ var r=_save.apply(this,arguments); try{ soon(); }catch(e){} return r; }; }
+document.addEventListener('visibilitychange',function(){ if(!running && document.visibilityState==='visible' && localStorage.getItem(K_ON)!=='0' && curCode()) startSync(); });
 window.addEventListener('online',function(){ if(running) setTimeout(function(){ discover(true); },1500); });
 document.addEventListener('visibilitychange',function(){ if(running && document.visibilityState==='visible') setTimeout(function(){ drain(); if(!peers.length) discover(true); else pushNow(); },1200); });
 /* الواجهة: زر داخل لوحة الإدارة + نافذة (ماكاين حتى زر عائم فالواجهة الرئيسية) */
@@ -17608,15 +17612,15 @@ box.innerHTML='<div style="font-weight:bold;margin-bottom:6px">🔗 مزامنة
 +'<button id="lanFind" style="flex:1;padding:9px;border:0;border-radius:8px;background:#7c3aed;color:#fff">🔍 قلب</button></div>'
 +'<div id="lanInfo" style="margin-top:8px;font-size:12px;color:#555"></div>'
 +'<div style="margin-top:6px;text-align:left"><button id="lanClose" style="padding:6px 14px;border:0;border-radius:8px;background:#e5e7eb">سد</button></div>';
-function refreshUi(){ var a=document.getElementById('lanSt'); if(a){ a.textContent=status; document.getElementById('lanTog').textContent=running?'⏹ إيقاف':'▶️ تشغيل'; document.getElementById('lanInfo').textContent=(myIp?('IP ديالي: '+myIp+' — '):'')+'الهواتف: '+(peers.length?peers.join(', '):'ما كاين حتى واحد')+' — كتخدم فالخلفية حتى والتطبيق مغلوق (خدمة صامتة)'; }
+function refreshUi(){ var a=document.getElementById('lanSt'); if(a){ a.textContent=status; document.getElementById('lanTog').textContent=running?'⏹ إيقاف':'▶️ تشغيل'; document.getElementById('lanInfo').textContent=(myIp?('IP ديالي: '+myIp+' — '):'')+'الهواتف: '+(peers.length?peers.join(', '):'ما كاين حتى واحد')+' — آخر مزامنة: '+lastTxt()+' — كيبدا أوتوماتيكيا مع فتح التطبيق بلا ما تضغط على والو، وكتخدم فالخلفية حتى والتطبيق مغلوق (خدمة صامتة)'; }
   if(admBtn) admBtn.textContent='🔗 مزامنة الهاتفين'+(running?(peers.length?' ✅':' ⏳'):''); }
 function setCode(c){ c=normCode(c); localStorage.setItem(K_CODE,c); keyP=null; var i=document.getElementById('lanCode'); if(i) i.value=fmtCode(c); return c; }
 function mount(){
   document.body.appendChild(box);
   var inp=document.getElementById('lanCode'); inp.value=fmtCode(curCode()); inp.placeholder='XXXX-XXXX';
-  inp.addEventListener('change',function(){ setCode(inp.value); });
+  inp.addEventListener('change',function(){ setCode(inp.value); if(localStorage.getItem(K_ON)==='0') return; (running?stopSync():Promise.resolve()).then(function(){ if(curCode().length===8){ localStorage.setItem(K_ON,'1'); startSync(); } }); });
   document.getElementById('lanClose').onclick=function(){ box.style.display='none'; };
-  document.getElementById('lanGen').onclick=function(){ if(running) stopSync(); setCode(genCode()); status='كود جديد — دخلو فالهاتف الآخر وشغل ▶️ فالهاتفين'; refreshUi(); };
+  document.getElementById('lanGen').onclick=function(){ (running?stopSync():Promise.resolve()).then(function(){ setCode(genCode()); status='كود جديد — دخلو نفس الكود فالهاتف الآخر (غادي يتزامنو بوحدهم)'; localStorage.setItem(K_ON,'1'); refreshUi(); startSync(); }); };
   document.getElementById('lanCopy').onclick=function(){ var c=fmtCode(curCode()); try{ navigator.clipboard.writeText(c); status='📋 تنسخ الكود'; }catch(e){ status='الكود: '+c; } refreshUi(); };
   document.getElementById('lanTog').onclick=function(){ setCode(inp.value); if(running) stopSync(); else startSync(); };
   document.getElementById('lanFind').onclick=function(){ if(!running){ status='شغل المزامنة أولا'; refreshUi(); return; } discover(true); };
@@ -17627,7 +17631,7 @@ function mount(){
     admBtn.onclick=function(){ try{ closeOverlay('adminPanelOverlay'); }catch(e){} if(!curCode()) setCode(genCode()); box.style.display='block'; refreshUi(); };
     host.insertBefore(admBtn,ref); }
   refreshUi();
-  if(localStorage.getItem(K_ON)==='1') setTimeout(startSync,3000);
+  if(localStorage.getItem(K_ON)!=='0' && curCode()) setTimeout(startSync,2000);
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',mount); else mount();
 }catch(e){ console.warn('lansync init error',e); }
