@@ -337,6 +337,7 @@ jobs:
           /** خدمة أمامية دائمة: كتبقى كتسمع على البورت حتى والهاتف مقفول، وكتخزن الرسائل فملفات حتى يفتح التطبيق. */
           public class LanSyncService extends Service {
               static final int PORT = 8765;
+              static final boolean USE_WIFI_LOCK = false;
               private static final String CH = "lansync_ch2";
               private static final String ALERT_CH = "lansync_alert2";
               private static volatile long lastAlert = 0;
@@ -364,8 +365,10 @@ jobs:
                   } catch (Throwable t) { }
                   try {
                       WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                      if (wfl == null) { wfl = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "tatabbou:lansync"); wfl.setReferenceCounted(false); }
-                      if (!wfl.isHeld()) wfl.acquire();
+                      if (USE_WIFI_LOCK) { // ⭐ مطفي بالافتراض لتوفير البطارية (HIGH_PERF كيخلي الواي-فاي شاعل بقوة 24/24). بدلو لـ true إلا فاتتك تعديلات والهاتف مقفول
+                          if (wfl == null) { wfl = wm.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "tatabbou:lansync"); wfl.setReferenceCounted(false); }
+                          if (!wfl.isHeld()) wfl.acquire();
+                      }
                   } catch (Throwable t) { }
                   if (!running) startServer();
                   return START_STICKY;
