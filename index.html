@@ -17495,6 +17495,87 @@ window.addEventListener('load', ()=>{
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') setTimeout(spRestoreMissing, 1500); });
 </script>
 <script>
+/* ===== 🔋 وضع توفير البطارية والهاتف لمزامنة الهاتفين — إضافة معزولة، ما كتبدل حتى سطر من الكود القديم =====
+   خاصها تتحط فالهاتفين معا، قبل <script> ديال بلوك "مزامنة محلية بين هاتفين".
+   إلا ما تعرفاتش شي حاجة، كلشي كيخدم بحال قبل (fail-safe). */
+(function(){
+'use strict';
+try{
+  /* حالة البطارية (إلا الهاتف كيدعمها) */
+  var bat={level:1,charging:true};
+  try{ if(navigator.getBattery){ navigator.getBattery().then(function(b){
+    var up=function(){ bat.level=b.level; bat.charging=b.charging; };
+    up(); b.addEventListener('levelchange',up);
+    b.addEventListener('chargingchange',function(){ up(); if(b.charging) resetBackoff(); });
+  }).catch(function(){}); } }catch(e){}
+  var low=function(){ return !bat.charging && bat.level<0.3; };        /* بطارية ضعيفة وماشي فالشحن */
+  var hiddenGap=function(){ return bat.charging?300000:(low()?1800000:600000); }; /* فالخلفية: 5 / 10 / 30 دقيقة */
+
+  var GAPS=[0,10000,30000,60000,120000,300000]; /* backoff للبحث: كل ما ما لقاش هاتف كيتباعد */
+  var emptyN=0, lastAt=0, lastRes={ip:null,peers:[]}, scanning=null, wrapped=null, dirtyAt=0;
+  function resetBackoff(){ emptyN=0; lastAt=0; }
+  function smartScan(real){
+    if(scanning) return scanning;
+    var gap=Math.max(GAPS[Math.min(emptyN,GAPS.length-1)]*(low()?3:1), document.hidden?hiddenGap():0);
+    if(dirtyAt && Date.now()-dirtyAt<15000) gap=Math.min(gap,20000); /* تعديل جديد: نقلبو على الهاتف الآخر (مرة كل 20 ثانية كحد أقصى) */
+    if(lastAt && Date.now()-lastAt<gap) return Promise.resolve(lastRes); /* بلا بحث فالشبكة = بلا استهلاك */
+    scanning=Promise.resolve(real.scan()).then(function(r){
+      lastAt=Date.now(); lastRes=r||{ip:null,peers:[]};
+      if(lastRes.peers && lastRes.peers.length) emptyN=0; else emptyN++;
+      scanning=null; return r;
+    },function(e){ emptyN++; lastAt=Date.now(); scanning=null; throw e; });
+    return scanning;
+  }
+  /* 1) البحث فالشبكة (أكبر استهلاك): backoff + نادر فالخلفية + أنذر وقت البطارية ضعيفة */
+  if(window.Capacitor && Capacitor.registerPlugin){
+    var realReg=Capacitor.registerPlugin;
+    Capacitor.registerPlugin=function(name){
+      var real=realReg.apply(this,arguments);
+      if(name!=='LanSync') return real;
+      if(wrapped) return wrapped;
+      try{ real.addListener('message',resetBackoff); }catch(e){} /* هاتف آخر كلمنا = نرجعو للسرعة العادية */
+      wrapped=new Proxy(real,{get:function(t,p){
+        if(p==='scan') return function(){ return smartScan(real); };
+        var v=real[p]; return (typeof v==='function')?v.bind(real):v;
+      }});
+      return wrapped;
+    };
+  }
+  /* 2) الـ timers: فالواجهة أبطأ، وفالخلفية شبه متوقفة (الاستقبال كيبقى خدام بالتنبيه 'pending' ديال النظام) */
+  var _si=window.setInterval, _st=window.setTimeout;
+  var srcOf=function(f){ return Function.prototype.toString.call(f); };
+  window.setInterval=function(fn,ms){
+    try{
+      if(typeof fn==='function' && (ms===10000||ms===8000)){
+        var s=srcOf(fn), n=0;
+        if(ms===10000 && s.indexOf('tick++')>-1 && s.indexOf('discover(true)')>-1){
+          return _si.call(window,function(){ if(document.hidden && (++n % (bat.charging?6:15))) return; return fn.apply(this,arguments); },20000);
+        }
+        if(ms===8000 && s.indexOf('_wdBusy')>-1){
+          return _si.call(window,function(){ if(document.hidden && (++n % (bat.charging?4:10))) return; return fn.apply(this,arguments); },30000);
+        }
+      }
+    }catch(e){}
+    return _si.apply(window,arguments);
+  };
+  /* تعديل فالهاتف الرئيسي = كيمشي للثانوي تلقائيا بلا ما نفتحو (الهاتف الثانوي خاصو يكون شاعل فيه التطبيق/الخدمة) */
+  var _sv=window.save;
+  if(typeof _sv==='function'){ window.save=function(){ dirtyAt=Date.now(); return _sv.apply(this,arguments); }; }
+  /* 3) الحفظ المتكرر: عدة save فدفعة وحدة (2.5 ثانية بدل 0.6) باش ما يتعاودش حساب البصمات */
+  window.setTimeout=function(fn,ms){
+    var a=Array.prototype.slice.call(arguments);
+    try{ if(ms===600 && typeof fn==='function'){ var s=srcOf(fn); if(s.length<90 && s.indexOf('pushNow()')>-1) a[1]=2500; } }catch(e){}
+    return _st.apply(window,a);
+  };
+  /* رجوع السرعة العادية فاللحظات المهمة: أزرار المزامنة، رجوع النت، فتح التطبيق */
+  document.addEventListener('click',function(e){ try{ if(e.target.closest && e.target.closest('#lanFind,#lanFull,#lanGen,#lanTog')) resetBackoff(); }catch(x){} },true);
+  window.addEventListener('online',resetBackoff);
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible') resetBackoff(); });
+}catch(e){ console.warn('lansync-eco init error',e); }
+})();
+
+</script>
+<script>
 /* ===== 🔗 مزامنة محلية بين هاتفين عبر نفس الروتر (بلا إنترنت) — إضافة معزولة، ما كتبدل حتى كود قديم ===== */
 (function(){
 'use strict';
