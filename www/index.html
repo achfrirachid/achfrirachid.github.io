@@ -1211,6 +1211,18 @@ waToken: 4e3ff8f3e82a4afe93bbfceb52a2f305b15a3e341af3407c8c" style="min-height:1
       <button class="pill-btn active" onclick="showWaReportLastError()">👁️ شوف الخطأ</button>
     </div>
     <div class="settings-row" style="border-bottom:none;">
+      <span>🩺 فحص دقيق ديال إرسال التقارير (واتساب + تلغرام) — كيقول فين المشكل بالضبط وكيعاود يصيفط</span>
+      <button class="pill-btn active" style="background:#1a73e8;color:#fff;" onclick="diagnoseDelivery()">🩺 افحص وصيفط</button>
+    </div>
+    <div class="settings-row" style="border-bottom:none;">
+      <span>🧹 صيانة تلقائية كل 6 ساعات (كاش + ملفات تالفة) — تقدر تشغلها دابا</span>
+      <button class="pill-btn active" onclick="autoMaintenanceNow()">🧹 صيانة دابا</button>
+    </div>
+    <div class="settings-row" style="border-bottom:none;">
+      <span>💾 تحقق أن كل النسخ الاحتياطية فيها كل الطلبة (وكمّل الناقص)</span>
+      <button class="pill-btn active" onclick="verifyBackups().then(()=>toast('✅ النسخ الاحتياطية تحققات'))">💾 تحقق دابا</button>
+    </div>
+    <div class="settings-row" style="border-bottom:none;">
       <span>🧹 مسح تقارير WhatsApp القديمة وخلي تقرير واحد فقط</span>
       <button class="pill-btn active" onclick="waManualCleanupNow()">🧹 نظف دابا</button>
     </div>
@@ -15670,6 +15682,523 @@ async function hourlyAutoCleanup(){
 }
 window.addEventListener('load', ()=> setTimeout(()=>{ try{ hourlyAutoCleanup(); }catch(e){} }, 20000));
 __taskScheduler.register('hourlyAutoCleanup', HOURLY_CLEANUP_MS, hourlyAutoCleanup);
+
+</script>
+<script>
+/* ============================================================
+   🛠️ 2026-11-18 — إصلاحات (بطلب رشيد)
+   1) التقارير (واتساب/تلغرام): مهل أطول للرفع، تخفيض حجم الصورة إلا كبرات بزاف،
+      رجوع تلقائي لـ sendDocument إلا رفضها تلغرام كصورة، حارس ضد الأقفال العالقة،
+      ومحاولات إعادة تلقائية + زر فحص دقيق (🩺).
+   2) ضياع الطلبة بعد الحذف/إعادة التثبيت: الاسترجاع كان كيوقف عند أول مصدر (ملف الهاتف
+      الأحدث، حتى لو ناقص) وكيصيفطو للسحابات اللي كتكتب فوق النسخ الكاملة.
+      دابا: دمج كل المصادر (ملفات الهاتف + كل السحابات) قبل أي إرسال، وحارس ضد النقصان.
+   3) صيانة تلقائية (كاش/ملفات تالفة) كل 6 ساعات.
+   4) مراقب النسخ الاحتياطية: كيتأكد كل نسخة فيها كل الطلبة وإلا كيعاود يكملها.
+   ============================================================ */
+(function(){
+  'use strict';
+  if(window.__patch20261118) return;
+  window.__patch20261118 = true;
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const ls = {
+    get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+    set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} },
+    del(k){ try{ localStorage.removeItem(k); }catch(e){} }
+  };
+  const has = n => { try{ return typeof window[n] === 'function'; }catch(e){ return false; } };
+  const safeToast = m => { try{ toast(m); }catch(e){ console.log(m); } };
+  const profileKey = base => { try{ return currentProfileStorageKey(base); }catch(e){ return base; } };
+
+  /* ---------------- 1) الشبكة: مهل + رجوع sendDocument ---------------- */
+  (function(){
+    const _f = window.fetch.bind(window);
+    window.fetch = async function(input, init){
+      try{
+        const url = typeof input === 'string' ? input : ((input && input.url) || '');
+        const isTgGa = /api\.telegram\.org|api\.green-api\.com/.test(url);
+        let proxyWa = false;
+        try{ proxyWa = typeof PROXY_URL === 'string' && PROXY_URL && url.indexOf(PROXY_URL + '/wa-') === 0; }catch(e){}
+        const isForm = !!(init && init.body && typeof FormData !== 'undefined' && init.body instanceof FormData);
+        if(((isTgGa && isForm) || proxyWa) && !(init && init.signal)){
+          const c = new AbortController();
+          const t = setTimeout(()=> c.abort(), isForm ? 90000 : 30000);
+          const opts = Object.assign({}, init || {}, { signal: c.signal });
+          let resp;
+          try{ resp = await _f(input, opts); }finally{ clearTimeout(t); }
+          // تلغرام رفض الصورة (أبعاد/حجم) → نعاودو نصيفطوها كملف
+          if(isTgGa && isForm && /\/sendPhoto$/.test(url) && resp && !resp.ok){
+            let d = '';
+            try{ const j = await resp.clone().json(); d = String((j && j.description) || ''); }catch(e){}
+            if(/PHOTO_|dimension|too big|too large|wrong file|IMAGE_PROCESS/i.test(d)){
+              const fd = new FormData();
+              init.body.forEach((v,k)=> fd.append(k === 'photo' ? 'document' : k, v));
+              const c2 = new AbortController();
+              const t2 = setTimeout(()=> c2.abort(), 90000);
+              try{ return await _f(url.replace(/sendPhoto$/, 'sendDocument'), { method:'POST', body: fd, signal: c2.signal }); }
+              finally{ clearTimeout(t2); }
+            }
+          }
+          return resp;
+        }
+      }catch(e){
+        if(e && e.name === 'AbortError') throw e;
+      }
+      return _f(input, init);
+    };
+  })();
+
+  /* صورة التقرير: إلا كبرات بزاف (بزاف ديال الطلبة) كنصغروها باش تلغرام ما يرفضهاش */
+  try{
+    if(has('buildStudentsReportTableCanvas')){
+      window.buildStudentsReportImageBlob = async function(){
+        let c = buildStudentsReportTableCanvas();
+        const MAX_SUM = 9000;
+        const sum = c.width + c.height;
+        if(sum > MAX_SUM){
+          const k = MAX_SUM / sum;
+          const c2 = document.createElement('canvas');
+          c2.width = Math.max(1, Math.floor(c.width * k));
+          c2.height = Math.max(1, Math.floor(c.height * k));
+          const x = c2.getContext('2d');
+          x.fillStyle = '#ffffff'; x.fillRect(0, 0, c2.width, c2.height);
+          x.imageSmoothingQuality = 'high';
+          x.drawImage(c, 0, 0, c2.width, c2.height);
+          c = c2;
+        }
+        let blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
+        if(blob && blob.size > 6 * 1024 * 1024) blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.7));
+        if(!blob) throw new Error('canvas-toBlob-failed');
+        return blob;
+      };
+    }
+  }catch(e){ console.warn('report image patch', e); }
+
+  /* أقفال عالقة (إرسال معلق للأبد) → كنحلوها بعد 4 دقايق */
+  (function(){
+    let tgSince = 0, waSince = 0;
+    setInterval(function(){
+      const now = Date.now();
+      try{
+        if(typeof tgReportUploadBusy !== 'undefined' && tgReportUploadBusy){
+          if(!tgSince) tgSince = now;
+          else if(now - tgSince > 240000){ tgReportUploadBusy = false; tgSince = 0; }
+        } else tgSince = 0;
+      }catch(e){}
+      try{
+        if(typeof waUploadBackupBusy !== 'undefined' && waUploadBackupBusy){
+          if(!waSince) waSince = now;
+          else if(now - waSince > 240000){
+            waUploadBackupBusy = false; waSince = 0;
+            try{ waReleaseSendLock(); }catch(e){}
+          }
+        } else waSince = 0;
+      }catch(e){}
+    }, 30000);
+  })();
+
+  /* محاولات إعادة تلقائية: كل 3 دقايق إلا كاين تقرير ما وصلش (مع تباعد تصاعدي) */
+  (function(){
+    let fails = 0, nextAt = 0;
+    async function tick(){
+      try{
+        if(!navigator.onLine || Date.now() < nextAt) return;
+        if(typeof restoreMergePending !== 'undefined' && restoreMergePending) return;
+        const hash = computeStudentsReportHash();
+        let needTg = false, needWa = false;
+        try{
+          if(tgConfigured()){
+            for(const d of getTelegramOwnerDestinations('report')){
+              if(!getTgOwnerReportId(d.role, d.botIndex) || getTgOwnerReportHash(d.role, d.botIndex) !== hash) needTg = true;
+            }
+          }
+        }catch(e){}
+        try{ if(waConfigured() && getWaLastHash() !== hash) needWa = true; }catch(e){}
+        if(!needTg && !needWa){ fails = 0; return; }
+        let ok = true;
+        if(needTg){ try{ ok = (await tgUploadStudentsReport(false)) !== false && ok; }catch(e){ ok = false; } }
+        if(needWa){ try{ ok = (await waUploadBackup(false)) !== false && ok; }catch(e){ ok = false; } }
+        if(ok){ fails = 0; nextAt = 0; }
+        else { fails++; nextAt = Date.now() + Math.min(20 * 60000, 60000 * Math.pow(2, fails)); }
+      }catch(e){}
+    }
+    try{ __taskScheduler.register('deliveryRetry3m', 3 * 60 * 1000, tick); }catch(e){ setInterval(tick, 180000); }
+    window.addEventListener('online', ()=> setTimeout(tick, 3000));
+  })();
+
+  /* زر فحص دقيق: يقول بالضبط فين المشكل (بوت، شات، سيرفر، واتساب) */
+  window.diagnoseDelivery = async function(){
+    const out = [];
+    try{
+      const tok = getTgBotToken2();
+      if(!tok){ out.push('❌ تلغرام: ماكاين حتى توكن'); }
+      else{
+        try{
+          const r = await fetch('https://api.telegram.org/bot' + tok + '/getMe');
+          const j = await r.json().catch(()=>null);
+          out.push(r.ok && j && j.ok ? ('✅ تلغرام: البوت خدام (@' + j.result.username + ')') : ('❌ تلغرام: التوكن ماخدمش — ' + ((j && j.description) || r.status) + ' ← خاصك توكن جديد من @BotFather'));
+        }catch(e){ out.push('❌ تلغرام: ماقدرش يتصل — ' + (e && e.message || e)); }
+        for(const c of [{n:'رشيد', id:getTgChatId()}, {n:'عائشة', id:getTgAichaChatId()}]){
+          try{
+            const r = await fetch('https://api.telegram.org/bot' + tok + '/getChat?chat_id=' + encodeURIComponent(c.id));
+            const j = await r.json().catch(()=>null);
+            out.push(r.ok && j && j.ok ? ('✅ محادثة ' + c.n + ' (' + c.id + ') كاينة') : ('❌ محادثة ' + c.n + ' (' + c.id + '): ' + ((j && j.description) || r.status) + ' ← دير /start للبوت'));
+          }catch(e){ out.push('❌ محادثة ' + c.n + ': ' + (e && e.message || e)); }
+        }
+      }
+    }catch(e){ out.push('❌ تلغرام: ' + (e && e.message || e)); }
+    try{
+      if(!proxyConfigured()) out.push('❌ واتساب: السيرفر (Worker) ماشي معمر');
+      else{
+        for(const c of [{n:'رشيد', id:getRachidOwnerChatId()}, {n:'عائشة', id:getAichaOwnerChatId()}]){
+          const { ok, data } = await waRelay('getStateInstance', { chatId: c.id });
+          const st = data && (data.stateInstance || data.error || data.message);
+          if(ok && st === 'authorized') out.push('✅ واتساب ' + c.n + ': مربوط (authorized)');
+          else out.push('❌ واتساب ' + c.n + ': ' + (st || 'السيرفر ماجاوبش') + (st && st !== 'authorized' && ok ? ' ← خاصك تعاود تسكان QR فـ Green API' : ''));
+        }
+      }
+    }catch(e){ out.push('❌ واتساب: ' + (e && e.message || e)); }
+    try{ out.push('🕒 آخر خطأ تلغرام: ' + (ls.get('tgReportLastErrorV1') || 'ماكاين')); }catch(e){}
+    alert('🩺 فحص الإرسال\n\n' + out.join('\n') + '\n\nدابا غادي نحاول نصيفط التقارير...');
+    try{ tgUploadStudentsReport(false); }catch(e){}
+    try{ waUploadBackup(true); }catch(e){}
+  };
+
+  /* ---------------- 2) الاسترجاع الكامل + الحماية من النقصان ---------------- */
+  let restoreMergePending = false;
+  window.__restoreMergePending = false;
+  const setPending = v => { restoreMergePending = !!v; window.__restoreMergePending = !!v; };
+  const mergeDoneKey = () => profileKey('fullMergeDoneV1');
+  const hwKey = () => profileKey('studentsHighWaterV1');
+  let passesGen = 0, passRunning = false;
+
+  async function gatherLocal(){
+    const out = [];
+    const add = b => {
+      try{
+        let arr = null;
+        if(Array.isArray(b)) arr = b;
+        else if(b && Array.isArray(b.students)){
+          if(has('backupOwnerOk') && !backupOwnerOk(b)) return;
+          arr = b.students;
+        }
+        if(arr && arr.length) arr.forEach(x => { if(x && typeof x === 'object') out.push(x); });
+      }catch(e){}
+    };
+    for(const n of ['readAppFolderBackup','readDeviceDownloadBackup','readSplitBackupIfAny','readNativeDocumentsBackup','loadExtraLocalBackupCopy']){
+      try{ if(has(n)) add(await window[n]()); }catch(e){}
+    }
+    try{ if(has('readAllLocalBackupsDeep')){ const deep = await readAllLocalBackupsDeep(); (deep || []).forEach(add); } }catch(e){}
+    try{ const raw = ls.get(PRE_RESTORE_SAFETY_KEY); if(raw) add(JSON.parse(raw)); }catch(e){}
+    return out;
+  }
+  async function gatherCloud(){
+    const jobs = [];
+    ['fbFetchBackup','sbFetchBackup','tgFetchBackup','ghFetchBackup','gmailFetchBackup'].forEach(n => { if(has(n)) jobs.push(()=> window[n]()); });
+    try{
+      if(typeof LIGHT_CLOUDS !== 'undefined'){
+        Object.keys(LIGHT_CLOUDS).forEach(k => {
+          const s = LIGHT_CLOUDS[k];
+          try{ if(s && s.configured && s.configured() && s.fetch) jobs.push(()=> s.fetch()); }catch(e){}
+        });
+      }
+    }catch(e){}
+    const res = await Promise.allSettled(jobs.map(j => withTimeout(Promise.resolve().then(j), 30000, 'gather')));
+    const out = [];
+    res.forEach(r => { if(r.status === 'fulfilled' && Array.isArray(r.value)) r.value.forEach(x => { if(x && typeof x === 'object') out.push(x); }); });
+    return out;
+  }
+  async function waitFb(ms){
+    const t0 = Date.now();
+    while(Date.now() - t0 < ms){
+      try{ if(typeof fbAuth !== 'undefined' && fbAuth && fbAuth.currentUser) return true; }catch(e){}
+      await sleep(1000);
+    }
+    return false;
+  }
+  function hwRead(){ try{ return JSON.parse(ls.get(hwKey()) || 'null'); }catch(e){ return null; } }
+  function hwWrite(){
+    try{ ls.set(hwKey(), JSON.stringify({ n: students.length, d: (getDeletedLog() || []).length })); }catch(e){}
+  }
+  function finalize(markDone){
+    if(markDone) ls.set(mergeDoneKey(), String(Date.now()));
+    setPending(false);
+    hwWrite();
+    try{ if(typeof __nbDirty !== 'undefined'){ __nbDirty = true; } __flushNativeBackups(); }catch(e){}
+    try{ queueBackgroundCloudSync(); }catch(e){}
+    setTimeout(()=>{ try{ verifyBackups(); }catch(e){} }, 8000);
+  }
+  async function runPass(tag, isLast){
+    if(passRunning) return false;
+    passRunning = true;
+    let complete = false;
+    try{
+      if(!Array.isArray(students)) return false;
+      try{ if(typeof __identityMismatch === 'function' && __identityMismatch()) return false; }catch(e){}
+      const online = navigator.onLine;
+      let sess = false; try{ sess = has('hasActiveGoogleSession') && hasActiveGoogleSession(); }catch(e){}
+      let fbReady = true;
+      if(online && sess) fbReady = await waitFb(isLast ? 5000 : 20000);
+      try{ await mergeAllCloudDeletedLogs(); }catch(e){}
+      const before = students.length;
+      const local = await gatherLocal();
+      const cloud = (online && sess) ? await gatherCloud() : [];
+      const combined = local.concat(cloud);
+      if(combined.length){ try{ applyRestoreData(combined, true); }catch(e){ console.warn('merge apply error', e); } }
+      const added = students.length - before;
+      if(added > 0){
+        safeToast('✅ كملنا ' + added + ' طالب كانو ناقصين من النسخ الاحتياطية — دابا عندك ' + students.length);
+        try{ render(); }catch(e){}
+      }
+      const cloudsConsulted = online && sess && fbReady;
+      complete = (!online) || (!sess) || fbReady;
+      if(complete || isLast) finalize(cloudsConsulted);
+    }catch(e){
+      console.warn('runPass error', tag, e);
+      if(isLast) finalize(false);
+    }finally{
+      passRunning = false;
+    }
+    return complete;
+  }
+  function schedulePasses(reason){
+    const gen = ++passesGen;
+    setPending(true);
+    const steps = [[1500,false],[45000,false],[120000,true]];
+    let finished = false;
+    steps.forEach(([ms,last]) => setTimeout(async ()=>{
+      if(gen !== passesGen || finished) return;
+      const done = await runPass(reason + '@' + ms, last);
+      if(done || last) finished = true;
+    }, ms));
+    // أمان: ما نبقاوش نبلوكيو السحابات أكثر من 3 دقايق
+    setTimeout(()=>{ if(gen === passesGen && restoreMergePending){ finalize(false); } }, 180000);
+  }
+
+  // مصدر 1: بعد أي استرجاع محلي ناجح (هنا كان المشكل: كيوقف عند أول مصدر)
+  try{
+    if(has('restoreStudentsForCurrentProfile')){
+      const _rs = window.restoreStudentsForCurrentProfile;
+      window.restoreStudentsForCurrentProfile = async function(){
+        if(!ls.get(mergeDoneKey())) setPending(true);
+        const r = await _rs.apply(this, arguments);
+        if(r && !ls.get(mergeDoneKey())) schedulePasses('restore');
+        else if(!r && restoreMergePending && !ls.get(mergeDoneKey())) schedulePasses('restore-empty');
+        return r;
+      };
+    }
+  }catch(e){ console.warn('restore wrap', e); }
+
+  // أي كتابة/إرسال كيتأجل حتى يكمل الدمج (ما نكتبوش فوق نسخ كاملة بنسخة ناقصة)
+  ['fbUploadBackup','sbUploadBackup','ghUploadBackup','tgUploadBackup','syncNowIfPending',
+   'writeNativeDocumentsBackup','writeDeviceBackupNow','writeSplitBackupNow','__flushNativeBackups'].forEach(n => {
+    try{
+      if(!has(n)) return;
+      const orig = window[n];
+      window[n] = function(){
+        if(restoreMergePending) return (n === '__flushNativeBackups' || n.indexOf('write') === 0) ? undefined : Promise.resolve(false);
+        return orig.apply(this, arguments);
+      };
+    }catch(e){}
+  });
+
+  // حارس النقصان فالاستعمال العادي: إلا نقصو الطلبة بلا ما يكونو محذوفين → وقف الإرسال + جمع من المصادر
+  try{
+    if(has('save')){
+      const _save = window.save;
+      window.save = function(){
+        const r = _save.apply(this, arguments);
+        try{
+          if(!restoreMergePending && Array.isArray(students) && students.length > 0){
+            const rec = hwRead();
+            const n = students.length, d = (getDeletedLog() || []).length;
+            if(!rec){ hwWrite(); }
+            else{
+              const minOk = rec.n - Math.max(0, d - (rec.d || 0));
+              if(n >= minOk) hwWrite();
+              else{
+                console.warn('⚠️ students shrank unexpectedly', rec.n, '→', n);
+                schedulePasses('shrink');
+              }
+            }
+          }
+        }catch(e){}
+        return r;
+      };
+    }
+  }catch(e){ console.warn('save wrap', e); }
+
+  // إلا الدمج ما قدرش يوصل للسحابات (مازال ما دخلتيش/النت ضعيف) → نعاودو من بعد (3 مرات كحد أقصى فالجلسة)
+  (function(){
+    let lateTries = 0;
+    function lateTick(){
+      try{
+        if(lateTries >= 3 || restoreMergePending || passRunning || ls.get(mergeDoneKey())) return;
+        let sess = false; try{ sess = has('hasActiveGoogleSession') && hasActiveGoogleSession(); }catch(e){}
+        if(navigator.onLine && sess && Array.isArray(students) && students.length){ lateTries++; schedulePasses('late'); }
+      }catch(e){}
+    }
+    try{ __taskScheduler.register('mergeLateRetry', 2 * 60 * 1000, lateTick); }catch(e){}
+  })();
+
+  /* ---------------- 3) مراقب النسخ الاحتياطية ---------------- */
+  let verifying = false;
+  async function verifyBackups(){
+    if(verifying || restoreMergePending) return;
+    if(!Array.isArray(students) || !students.length) return;
+    verifying = true;
+    try{
+      const cur = new Set(students.map(s => s && s.id).filter(Boolean));
+      let needRewrite = false;
+      // نسخ الجهاز (localStorage + IndexedDB)
+      try{
+        const l = loadStudentsFromLocalStorage();
+        if(!l || l.length < cur.size){ saveStudentsToLocalStorage(students); }
+        const i = await idbLoadStudents();
+        if(!i || i.length < cur.size){ await idbSaveStudents(students); }
+      }catch(e){}
+      // ملفات الهاتف (Documents/Download/...)
+      try{
+        if(isNativeApp()){
+          for(const n of ['readAppFolderBackup','readDeviceDownloadBackup','readSplitBackupIfAny']){
+            if(!has(n)) continue;
+            try{
+              const b = await window[n]();
+              const ids = new Set(((b && b.students) || []).map(s => s && s.id).filter(Boolean));
+              let miss = 0; cur.forEach(id => { if(!ids.has(id)) miss++; });
+              if(!b || miss > 0) needRewrite = true;
+            }catch(e){}
+          }
+        }
+      }catch(e){}
+      if(needRewrite){
+        try{ __nbDirty = true; __flushNativeBackups(); }catch(e){}
+        try{ queueBackgroundCloudSync(); }catch(e){}
+        console.log('[backup-verify] rewrote incomplete backups');
+      }
+      ls.set(profileKey('backupVerifiedAtV1'), String(Date.now()));
+    }catch(e){ console.warn('verifyBackups', e); }
+    finally{ verifying = false; }
+  }
+  window.verifyBackups = verifyBackups;
+  try{ __taskScheduler.register('verifyBackups30m', 30 * 60 * 1000, ()=>{ verifyBackups(); }); }catch(e){}
+
+  /* ---------------- 4) صيانة تلقائية (كاش + ملفات تالفة) كل 6 ساعات ---------------- */
+  const MAINT_KEY = 'autoMaintenanceAtV1';
+  const MAINT_EVERY = 6 * 60 * 60 * 1000;
+  const MEDIA_CACHE_MAX_BYTES = 60 * 1024 * 1024; // سقف كاش الصور/الوصولات
+  async function capMediaCache(){
+    try{
+      if(typeof mcacheOpen !== 'function' || typeof MCACHE_STORE === 'undefined') return 0;
+      const db = await mcacheOpen();
+      if(!db) return 0;
+      const rows = await new Promise(res => {
+        const out = [];
+        const tx = db.transaction(MCACHE_STORE, 'readonly');
+        const rq = tx.objectStore(MCACHE_STORE).openCursor();
+        rq.onsuccess = e => {
+          const c = e.target.result;
+          if(c){ const v = c.value || {}; out.push({ key: c.key, size: (v.blob && v.blob.size) || 0, at: v.savedAt || 0 }); c.continue(); }
+          else res(out);
+        };
+        rq.onerror = () => res(out);
+      });
+      let total = rows.reduce((a,r)=> a + r.size, 0);
+      if(total <= MEDIA_CACHE_MAX_BYTES) return 0;
+      rows.sort((a,b)=> a.at - b.at);
+      const del = [];
+      for(const r of rows){ if(total <= MEDIA_CACHE_MAX_BYTES * 0.8) break; del.push(r.key); total -= r.size; }
+      await new Promise(res => {
+        const tx = db.transaction(MCACHE_STORE, 'readwrite');
+        del.forEach(k => tx.objectStore(MCACHE_STORE).delete(k));
+        tx.oncomplete = res; tx.onerror = res;
+      });
+      return del.length;
+    }catch(e){ return 0; }
+  }
+  async function removeCorruptBackupFiles(){
+    let removed = 0;
+    try{
+      if(!isNativeApp()) return 0;
+      const FS = getFilesystemPlugin();
+      if(!FS || typeof FS.readFile !== 'function' || typeof FS.deleteFile !== 'function') return 0;
+      const spots = await _localBackupSpots();
+      const bad = []; let goodCount = 0;
+      for(const sp of spots){
+        let names = [];
+        try{
+          const list = await FS.readdir(_spotArgs(sp, sp.folder));
+          names = (list && list.files ? list.files : []).map(f => (typeof f === 'string') ? f : (f && f.name)).filter(_looksLikeBackupFileName);
+        }catch(e){ continue; }
+        for(const name of names){
+          const path = _spotPath(sp, name);
+          try{
+            const res = await FS.readFile({ ..._spotArgs(sp, path), encoding: 'utf8' });
+            const text = String((res && res.data) || '').replace(/^\uFEFF/, '').trim();
+            let ok = false;
+            try{ const p = JSON.parse(text); ok = !!p; }catch(e){ ok = false; }
+            if(ok) goodCount++; else bad.push({ sp, path });
+          }catch(e){ /* ما نمسحوش إلا ما قدرناش نقراوه (صلاحيات) */ }
+        }
+      }
+      if(goodCount >= 1){
+        for(const b of bad){ try{ await FS.deleteFile(_spotArgs(b.sp, b.path)); removed++; }catch(e){} }
+      }
+    }catch(e){}
+    return removed;
+  }
+  function trimBookkeeping(){
+    try{
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if(!k) continue;
+        if(/^(tgBackupOldIds|tgReportOldIds)/.test(k)){
+          try{ const a = JSON.parse(localStorage.getItem(k) || '[]'); if(Array.isArray(a) && a.length > 12) localStorage.setItem(k, JSON.stringify(a.slice(-12))); }catch(e){ localStorage.removeItem(k); }
+        }
+      }
+    }catch(e){}
+  }
+  async function autoMaintenance(force){
+    try{
+      if(!force && restoreMergePending) return;
+      const last = Number(ls.get(MAINT_KEY) || 0);
+      if(!force && last && Date.now() - last < MAINT_EVERY) return;
+      ls.set(MAINT_KEY, String(Date.now()));
+      let capped = 0, corrupt = 0;
+      try{ if(has('cleanupOldAppCaches')) await cleanupOldAppCaches(true); }catch(e){}
+      try{ if(has('cleanupEmptyBackupFiles')) await cleanupEmptyBackupFiles(); }catch(e){}
+      corrupt = await removeCorruptBackupFiles();
+      capped = await capMediaCache();
+      trimBookkeeping();
+      console.log('[maintenance] done — corrupt files removed:', corrupt, ', cache entries trimmed:', capped);
+      if(force) safeToast('🧹 الصيانة تمت — ملفات تالفة: ' + corrupt + ' | كاش تنقص: ' + capped);
+    }catch(e){ console.warn('autoMaintenance', e); }
+  }
+  window.autoMaintenanceNow = () => autoMaintenance(true);
+  try{ __taskScheduler.register('autoMaintenance6h', MAINT_EVERY, ()=>{ autoMaintenance(false); }); }catch(e){}
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState === 'visible'){
+      const last = Number(ls.get(MAINT_KEY) || 0);
+      if(!last || Date.now() - last >= MAINT_EVERY) setTimeout(()=> autoMaintenance(false), 15000);
+    }
+  });
+
+  /* ---------------- تشغيل أولي ---------------- */
+  setTimeout(function boot(){
+    try{
+      // أول مرة (تنصيب جديد أو أول تشغيل بهاد الإصلاح): دمج كامل من كل المصادر
+      if(!ls.get(mergeDoneKey())){
+        if(Array.isArray(students) && students.length){ schedulePasses('boot'); }
+        else{ setPending(true); /* الاسترجاع غادي يبدا الدمج بنفسو */ setTimeout(()=>{ if(restoreMergePending && !ls.get(mergeDoneKey()) && !passRunning && passesGen === 0) schedulePasses('boot-empty'); }, 20000); }
+      }
+    }catch(e){}
+    setTimeout(()=>{ verifyBackups(); }, 40000);
+    setTimeout(()=>{ autoMaintenance(false); }, 60000);
+  }, 5000);
+  // قبل ما نكمل boot: إلا ماكانش الدمج تدار، السحابات تبقى معلقة من الأول
+  try{ if(!ls.get(mergeDoneKey())) setPending(true); }catch(e){}
+})();
 
 </script>
 <script>
