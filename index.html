@@ -1322,6 +1322,7 @@ waToken: 4e3ff8f3e82a4afe93bbfceb52a2f305b15a3e341af3407c8c" style="min-height:1
 </div>
 
 <script>
+var LAST_WA_SYNC_KEY = 'lastWaSyncAt'; var WA_LAST_HASH_KEY = 'waLastReportHash'; var WA_LAST_MSG_ID_KEY = 'waLastMsgId'; /* مرفوعين لفوق باش ما يطيحش TDZ */
 // ⭐ تصحيح: نقلنا تعريف هاد المفاتيح لبداية الملف باش تكون جاهزة قبل أي استعمال ليها،
 // كانت السبب فـ خطأ "Cannot access before initialization" فالتطبيق الأصلي (native).
 /* ⭐ نقلت لأعلى الملف: تفادي خطأ TDZ (Cannot access before initialization) */
@@ -13795,7 +13796,7 @@ function checkLock(){
   }
   checkGoogleGate();
 }
-checkLock();
+try{ checkLock(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 
 function hideGoogleGate(){
   const el = document.getElementById('googleGateScreen');
@@ -13823,20 +13824,20 @@ function gateGoogleSignIn(){
   fbSignIn(true, null);
 }
 
-migrateRegIds();
+try{ migrateRegIds(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 if(navigator.storage && navigator.storage.persist){
   navigator.storage.persist().catch(()=>{});
 }
 if(localStorage.getItem(AUTO_BACKUP_KEY) === null){
   localStorage.setItem(AUTO_BACKUP_KEY, '1');
 }
-updateNotifBtn();
-updateLocalBackupBadge();
+try{ updateNotifBtn(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
+try{ updateLocalBackupBadge(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 try{ updateCloudHealthBadge(); }catch(e){}
-updateAutoBackupBtn();
-updateFirebaseBtn();
-initAppFolderStatus();
-initDocumentsFolderStatus();
+try{ updateAutoBackupBtn(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
+try{ updateFirebaseBtn(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
+try{ initAppFolderStatus(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
+try{ initDocumentsFolderStatus(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 
 
 function ensureTokensSeeded(){
@@ -13896,7 +13897,7 @@ function startDataFlows(){
   checkMonthlyReminder(false);
   checkMonthlyDiagReminder(false);
 }
-if(hasActiveGoogleSession()) startDataFlows();
+try{ if(hasActiveGoogleSession()) startDataFlows(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 async function scheduleHolidayNotifications(){
   if(!isNativeApp()) return; // فالويب العادي ماكاينش local notifications، كنبقاو على checkHolidayReminder
   try{
@@ -13936,7 +13937,7 @@ async function scheduleHolidayNotifications(){
     console.error('scheduleHolidayNotifications error', e);
   }
 }
-scheduleHolidayNotifications();
+try{ scheduleHolidayNotifications(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 
 // تنبيهات موعد الخلاص الشهري — إشعار حقيقي من النظام (حتى والتطبيق مسكر)،
 // كيفكر بأول كل شهر دراسي (شتنبر → يونيو) باش يتفقد اللي بقاو ماخلصوش.
@@ -13969,9 +13970,9 @@ async function scheduleMonthlyDueNotifications(){
     if(notifications.length) await LocalNotifications.schedule({ notifications });
   }catch(e){ console.error('scheduleMonthlyDueNotifications error', e); }
 }
-scheduleMonthlyDueNotifications();
+try{ scheduleMonthlyDueNotifications(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 
-checkHolidayReminder(false);
+try{ checkHolidayReminder(false); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} }
 let welcomeSpokenFlag = false;
 function firstNameOnly(fullName){
   if(!fullName) return '';
@@ -13995,7 +13996,7 @@ function speakWelcomeGreeting(isAdmin, displayName){
 // هادشي كان هو السبب: كانت كتستهلك "الترحيب الوحيد" بالاسم القديم (رشيد مثلا)
 // وملي يدخل عائشة من بعدو فنفس الجلسة، الترحيب ديالها ما كيتسمعش.
 // دابا الترحيب كيتلانش غير من بعد دخول فعلي ناجح (فـ phoneOnlyOwnerLogin وفـ afterGoogleSignIn).
-studentsReportIfNeeded(); // كنشيكو مباشرة عند فتح التطبيق: إلا فاتو 3 أيام كنكتبو تقرير جديد
+try{ studentsReportIfNeeded(); }catch(e){ try{console.error('boot step failed:',e);}catch(_){} } // كنشيكو مباشرة عند فتح التطبيق: إلا فاتو 3 أيام كنكتبو تقرير جديد
 // ⚠️ تم إلغاء التقرير المجدول بوقت ثابت — التقرير دابا كيتصيفط غير عند أي تعديل ديال طالب أو بمجرد رجوع الانترنت (شوف queueBackgroundCloudSync وwaMonitorTick).
 setTimeout(()=>checkAndRestoreMissingStudentsReport(), 2500); // فحص أولي بعد تحميل مجلدات النسخ
 __taskScheduler.register('checkMonthlyReminder', 1000*60*60*6, ()=>checkMonthlyReminder(false)); // recheck every 6h while app open
@@ -14027,8 +14028,8 @@ __taskScheduler.register('lightStorageHealth', 1000*60*60*6, ()=>{
 __taskScheduler.register('autoSaveStudentsReportEveryMinute', 60000, ()=>autoSaveStudentsReportEveryMinute()); // نسخة كاملة محدثة كل دقيقة، بلا نت
 __taskScheduler.register('checkAndRestoreMissingStudentsReport', 1000*60*30, ()=>checkAndRestoreMissingStudentsReport()); // ⭐ 2026-09-19: مجلد ذاتي الإصلاح — كل 30 دقيقة
 
-const LAST_WA_SYNC_KEY = 'lastWaSyncAt';
-const WA_LAST_HASH_KEY = 'waLastReportHash';
+
+
 function waLastHashStorageKey(){
   const account = isTeacherAccountActive() ? 'teacher' : 'admin';
   return WA_LAST_HASH_KEY + ':' + sanitizeUidForPath(currentDataUid || account) + ':' + account;
@@ -14043,7 +14044,7 @@ function computeStudentsReportHash(){
     return JSON.stringify(students.map(s => [s.name || '', s.startDate || '', normalizePaidMonths(s)]));
   }catch(e){ return String(Date.now()); }
 }
-const WA_LAST_MSG_ID_KEY = 'waLastMsgId';
+
 function waLastMsgIdStorageKey(){
   const account = isTeacherAccountActive() ? 'teacher' : 'admin';
   return WA_LAST_MSG_ID_KEY + ':' + sanitizeUidForPath(currentDataUid || account) + ':' + account;
