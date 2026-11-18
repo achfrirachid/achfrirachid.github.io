@@ -1312,6 +1312,15 @@ waToken: 4e3ff8f3e82a4afe93bbfceb52a2f305b15a3e341af3407c8c" style="min-height:1
 <script>
 // ⭐ تصحيح: نقلنا تعريف هاد المفاتيح لبداية الملف باش تكون جاهزة قبل أي استعمال ليها،
 // كانت السبب فـ خطأ "Cannot access before initialization" فالتطبيق الأصلي (native).
+/* ⭐ نقلت لأعلى الملف: تفادي خطأ TDZ (Cannot access before initialization) */
+const WA_CHAT_ID_KEY = 'waChatId';
+const WA_ADMIN_CHAT_ID_KEY = 'waAdminChatIdV1';
+const K_C15 = 'teacherWaChatId';
+const TEACHER_DEFAULT_WA_PHONE_RAW = '+212677186838';
+const REPORT_WA_PHONE_KEY_ADMIN = 'reportWaPhoneAdmin', REPORT_WA_ENABLED_KEY_ADMIN = 'reportWaEnabledAdmin';
+const REPORT_WA_PHONE_KEY_TEACHER = 'reportWaPhoneTeacher', REPORT_WA_ENABLED_KEY_TEACHER = 'reportWaEnabledTeacher';
+const WA_DISCONNECT_ALERTED_KEY = 'waDisconnectAlerted';
+const WA_TEMPLATE_MSG_ID_KEY = 'waTemplateMsgId';
 const INITIAL_CODE_VERIFIED_KEY = 'initialCodeVerifiedV1'; // ⭐ 2026-09-18 (فيكس Claude): نقلناها لبداية الملف — كانت السبب فخطأ "Cannot access before initialization" لأن restoreCurrentDataUidOnBoot() كيستعملها قبل تعريفها الأصلي
 const K_C4 = 'tgBotToken';
 const K_C5 = 'tgChatId';
@@ -14006,10 +14015,6 @@ __taskScheduler.register('lightStorageHealth', 1000*60*60*6, ()=>{
 __taskScheduler.register('autoSaveStudentsReportEveryMinute', 60000, ()=>autoSaveStudentsReportEveryMinute()); // نسخة كاملة محدثة كل دقيقة، بلا نت
 __taskScheduler.register('checkAndRestoreMissingStudentsReport', 1000*60*30, ()=>checkAndRestoreMissingStudentsReport()); // ⭐ 2026-09-19: مجلد ذاتي الإصلاح — كل 30 دقيقة
 
-const WA_CHAT_ID_KEY = 'waChatId';
-const WA_ADMIN_CHAT_ID_KEY = 'waAdminChatIdV1';
-const K_C15 = 'teacherWaChatId';
-const TEACHER_DEFAULT_WA_PHONE_RAW = '+212677186838';
 const LAST_WA_SYNC_KEY = 'lastWaSyncAt';
 const WA_LAST_HASH_KEY = 'waLastReportHash';
 function waLastHashStorageKey(){
@@ -14114,8 +14119,6 @@ function waIsMyAccountReport(msg){
 function waConfigured(){ return !!(proxyConfigured() && (getWaChatId() || getWaReportChatId())); }
 
 /* ===== تفعيل/إلغاء تقارير واتساب برقم شخصي + رمز تأكيد (بلا أي توكن باين) ===== */
-const REPORT_WA_PHONE_KEY_ADMIN = 'reportWaPhoneAdmin', REPORT_WA_ENABLED_KEY_ADMIN = 'reportWaEnabledAdmin';
-const REPORT_WA_PHONE_KEY_TEACHER = 'reportWaPhoneTeacher', REPORT_WA_ENABLED_KEY_TEACHER = 'reportWaEnabledTeacher';
 // ⭐ تفعيل فوري بلا رمز تأكيد: حيت الرقم محصور أصلا فرقمين معروفين (رشيد أو عائشة)،
 // ماكاينش داعي نستناو رمز يوصل ونكتبوه — بمجرد ما الرقم يطابق واحد منهم، يتسجل ويخدم دغيا.
 async function reportWaSendCode(target){
@@ -14647,7 +14650,6 @@ async function waCheckConnectionState(){
     }
   }catch(e){}
 }
-const WA_DISCONNECT_ALERTED_KEY = 'waDisconnectAlerted';
 async function waMonitorTick(){
   waCheckConnectionState();
   if(!navigator.onLine) return;
@@ -14676,7 +14678,6 @@ async function waCheckFileStillThere(){
   }catch(e){ /* غير محاولة مراقبة صامتة، ماشي حرجة إلا فشلات */ }
 }
 
-const WA_TEMPLATE_MSG_ID_KEY = 'waTemplateMsgId';
 function buildStudentTemplateText(){
   return '📋 قالب إضافة طالب جديد (جمعية المعرفة)\n' +
     'انسخ هاد القالب، عمر الخانات، وبعتو لهاد الرقم:\n\n' +
